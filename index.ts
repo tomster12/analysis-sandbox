@@ -626,8 +626,8 @@ namespace Entities {
             });
             if (this.messages.length === 0) this.element.classList.add("empty");
             else this.element.classList.remove("empty");
-            this.panel.events.emit("outputUpdated", 0);
             this.panel.events.emit("nodesUpdated", 0);
+            this.panel.events.emit("outputUpdated", 0);
         }
 
         setInputNodeValue(index: number, value: Cipher.Message[]) {
@@ -668,8 +668,8 @@ namespace Entities {
                 this.messages.map((_, i) => `Message ${i}`)
             );
             this.elementCount.innerText = this.messages.length.toString();
-            for (let i = 0; i < this.messages.length; i++) this.panel.events.emit("outputUpdated", i);
             this.panel.events.emit("nodesUpdated", 0);
+            for (let i = 0; i < this.messages.length; i++) this.panel.events.emit("outputUpdated", i);
         }
 
         getOutputNodeValue(index: number): Cipher.Message[] {
@@ -684,7 +684,10 @@ namespace Entities {
     Globals.svgContainer = document.querySelector(".svg-container");
     Globals.PanelEntityManager = new Entities.PanelEntityManager();
 
-    const p1 = new Entities.PanelEntity(new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World")]), "Text");
+    const p1 = new Entities.PanelEntity(
+        new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]),
+        "Text"
+    );
 
     const p2 = new Entities.PanelEntity(
         new Entities.HardcodedEntity([
@@ -697,6 +700,8 @@ namespace Entities {
 
     const p3 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
 
+    const p6 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
+
     const p4 = new Entities.PanelEntity(new Entities.SplitMessagesEntity(), "Split");
 
     const p5 = new Entities.PanelEntity(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
@@ -705,5 +710,6 @@ namespace Entities {
     p2.setPosition(40, 300);
     p5.setPosition(40, 550);
     p3.setPosition(550, 100);
-    p4.setPosition(550, 300);
+    p6.setPosition(550, 200);
+    p4.setPosition(580, 400);
 })();

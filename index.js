@@ -579,8 +579,8 @@ var Entities;
                 this.element.classList.add("empty");
             else
                 this.element.classList.remove("empty");
-            this.panel.events.emit("outputUpdated", 0);
             this.panel.events.emit("nodesUpdated", 0);
+            this.panel.events.emit("outputUpdated", 0);
         }
         setInputNodeValue(index, value) {
             Util.assert(index == 0, "TextEntity only has one input");
@@ -613,9 +613,9 @@ var Entities;
             this.panel.setNodeCount(1, this.messages.length);
             this.panel.setNodeLabels(["Messages"], this.messages.map((_, i) => `Message ${i}`));
             this.elementCount.innerText = this.messages.length.toString();
+            this.panel.events.emit("nodesUpdated", 0);
             for (let i = 0; i < this.messages.length; i++)
                 this.panel.events.emit("outputUpdated", i);
-            this.panel.events.emit("nodesUpdated", 0);
         }
         getOutputNodeValue(index) {
             Util.assert(index < this.messages.length, "Invalid output index");
@@ -628,18 +628,20 @@ var Entities;
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.svgContainer = document.querySelector(".svg-container");
     Globals.PanelEntityManager = new Entities.PanelEntityManager();
-    const p1 = new Entities.PanelEntity(new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World")]), "Text");
+    const p1 = new Entities.PanelEntity(new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
     const p2 = new Entities.PanelEntity(new Entities.HardcodedEntity([
         Cipher.Message.parseFromString("0123232433422323"),
         Cipher.Message.parseFromString("45645632234456454"),
         Cipher.Message.parseFromString("13231212323232"),
     ]), "Text");
     const p3 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
+    const p6 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
     const p4 = new Entities.PanelEntity(new Entities.SplitMessagesEntity(), "Split");
     const p5 = new Entities.PanelEntity(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
     p1.setPosition(70, 50);
     p2.setPosition(40, 300);
     p5.setPosition(40, 550);
     p3.setPosition(550, 100);
-    p4.setPosition(550, 300);
+    p6.setPosition(550, 200);
+    p4.setPosition(580, 400);
 })();
