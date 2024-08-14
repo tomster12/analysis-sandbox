@@ -23,6 +23,23 @@ var Util;
             throw new Error(message);
     }
     Util.assert = assert;
+    /** Check if a value is Cipher.Message[]. */
+    function isCipherMessageArray(value) {
+        return value instanceof Array && value.every((v) => v instanceof Cipher.Message);
+    }
+    Util.isCipherMessageArray = isCipherMessageArray;
+    /** Convert a message into a consistent visual element. */
+    function createMessageElement(message) {
+        const parent = Util.createHTMLElement(`<div class="message"></div>`);
+        for (const letter of message.letters) {
+            const el = Util.createHTMLElement(`<span>${letter}</span>`);
+            // Set font size based on letter length
+            el.style.fontSize = `${0.7 - (letter.length - 1) * 0.15}rem`;
+            parent.appendChild(el);
+        }
+        return parent;
+    }
+    Util.createMessageElement = createMessageElement;
     /** A simple event bus for passing events between to listeners. */
     class EventBus {
         eventToHandleToFunc;
@@ -73,11 +90,6 @@ var Cipher;
 })(Cipher || (Cipher = {}));
 var Entities;
 (function (Entities) {
-    /** Check if a value is Cipher.Message[]. */
-    function isCipherMessageArray(value) {
-        return value instanceof Array && value.every((v) => v instanceof Cipher.Message);
-    }
-    Entities.isCipherMessageArray = isCipherMessageArray;
     /** A proxy to a HTML element which can be moved around and removed. */
     class BaseEntity {
         element;
@@ -110,6 +122,23 @@ var Entities;
         }
     }
     Entities.BaseEntity = BaseEntity;
+    class NotificationManager {
+        container;
+        constructor(elementContainer) {
+            this.container = elementContainer;
+        }
+        notify(message, position, type = "info") {
+            const el = new BaseEntity(`
+                <div class="notification ${type}">
+                    <div><img></img></div>
+                    <span>${message}</span>
+                </div>`);
+            el.setPosition(position.x, position.y);
+            el.setParent(this.container);
+            setTimeout(() => el.remove(), 3000);
+        }
+    }
+    Entities.NotificationManager = NotificationManager;
     /** Panel which can contain content and have input / output nodes. */
     class PanelEntity extends BaseEntity {
         elementBar;
@@ -184,7 +213,7 @@ var Entities;
             }
             this.nodeCounts.input = inputCount;
             this.nodeCounts.output = outputCount;
-            this.events.emit("nodesUpdated", this.position);
+            this.events.emit("nodesMoved", this.position);
         }
         setNodeLabels(inputLabels, outputLabels) {
             this.nodeLabels.input = inputLabels;
@@ -212,11 +241,11 @@ var Entities;
                 return this.elementNodesOutput.querySelectorAll(".panel-entity-node")[index];
             }
         }
-        setInputNodeValue(index, value) {
+        setInputValue(index, value) {
             Util.assert(this.content !== null, "Panel does not have any content");
             this.content.setInputNodeValue(index, value);
         }
-        getOutputNodeValue(index) {
+        getOutputValue(index) {
             Util.assert(this.content !== null, "Panel does not have any content");
             return this.content.getOutputNodeValue(index);
         }
@@ -263,12 +292,12 @@ var Entities;
             panel.events.listen(this, "remove", (panel) => this.onPanelRemoved(panel));
             panel.events.listen(this, "nodeClicked", (type, index) => {
                 if (type === "input")
-                    this.connectTargetNode(panel, index);
+                    this.connectTarget(panel, index);
                 else
-                    this.connectSourceNode(panel, index);
+                    this.connectSource(panel, index);
             });
         }
-        connectTargetNode(panel, nodeIndex) {
+        connectTarget(panel, nodeIndex) {
             if (this.currentConnection) {
                 // Dont allow single panel loops or target -> target connections
                 if (this.currentConnection.sourcePanel === panel || this.currentConnection.targetPanel != null) {
@@ -277,7 +306,7 @@ var Entities;
                     return;
                 }
                 // Delete any connections with same target
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetNodeIndex === nodeIndex);
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === nodeIndex);
                 if (existingConnection)
                     existingConnection.remove();
                 // Connect the target node and finish if needed
@@ -289,7 +318,7 @@ var Entities;
             }
             else {
                 // Check if the target node is already connected, and if so grab connection
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetNodeIndex === nodeIndex);
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === nodeIndex);
                 if (existingConnection) {
                     this.currentConnection = existingConnection;
                     this.currentConnection.unsetTarget();
@@ -300,7 +329,7 @@ var Entities;
                 this.currentConnection.setTarget(panel, nodeIndex);
             }
         }
-        connectSourceNode(panel, nodeIndex) {
+        connectSource(panel, nodeIndex) {
             if (this.currentConnection) {
                 // Dont allow single panel loops or source -> source connections
                 if (this.currentConnection.targetPanel === panel || this.currentConnection.sourcePanel != null) {
@@ -310,9 +339,9 @@ var Entities;
                 }
                 // Dont allow if connection already exists
                 const existingConnection = this.connections.find((c) => c.sourcePanel === panel &&
-                    c.sourceNodeIndex === nodeIndex &&
+                    c.sourceIndex === nodeIndex &&
                     c.targetPanel === this.currentConnection.targetPanel &&
-                    c.targetNodeIndex === this.currentConnection.targetNodeIndex);
+                    c.targetIndex === this.currentConnection.targetIndex);
                 if (existingConnection) {
                     this.currentConnection.remove();
                     this.currentConnection = null;
@@ -358,8 +387,8 @@ var Entities;
         isConnected;
         sourcePanel;
         targetPanel;
-        sourceNodeIndex;
-        targetNodeIndex;
+        sourceIndex;
+        targetIndex;
         sourcePos;
         targetPos;
         mouseMoveListener = (e) => this.onMouseMoved(e);
@@ -372,14 +401,14 @@ var Entities;
         setSource(panel, nodeIndex) {
             Util.assert(!this.isConnected, "Connection is already connected");
             this.sourcePanel = panel;
-            this.sourceNodeIndex = nodeIndex;
-            this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesUpdated());
-            this.sourcePanel.events.listen(this, "nodesUpdated", () => this.onSourceNodesUpdated());
+            this.sourceIndex = nodeIndex;
+            this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesMoved());
+            this.sourcePanel.events.listen(this, "nodesMoved", () => this.onSourceNodesMoved());
             this.sourcePanel.events.listen(this, "remove", () => this.remove());
-            this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.add("connecting");
+            this.sourcePanel.getNodeHTML("output", this.sourceIndex).classList.add("connecting");
             if (this.targetPanel)
                 this.establish();
-            this.recalculateSourceNodePos();
+            this.recalculateSourcePos();
             if (!this.targetPos)
                 this.targetPos = this.sourcePos;
             if (!this.isConnected)
@@ -389,14 +418,14 @@ var Entities;
         setTarget(panel, nodeIndex) {
             Util.assert(!this.isConnected, "Connection is already connected");
             this.targetPanel = panel;
-            this.targetNodeIndex = nodeIndex;
-            this.targetPanel.events.listen(this, "move", () => this.onTargetNodesUpdated());
-            this.targetPanel.events.listen(this, "nodesUpdated", () => this.onTargetNodesUpdated());
+            this.targetIndex = nodeIndex;
+            this.targetPanel.events.listen(this, "move", () => this.onTargetNodesMoved());
+            this.targetPanel.events.listen(this, "nodesMoved", () => this.onTargetNodesMoved());
             this.targetPanel.events.listen(this, "remove", () => this.remove());
-            this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.add("connecting");
+            this.targetPanel.getNodeHTML("input", this.targetIndex).classList.add("connecting");
             if (this.sourcePanel)
                 this.establish();
-            this.recalculateTargetNodePos();
+            this.recalculateTargetPos();
             if (!this.sourcePos)
                 this.sourcePos = this.targetPos;
             if (!this.isConnected)
@@ -406,17 +435,17 @@ var Entities;
         set(sourcePanel, sourceNodeIndex, targetPanel, targetNodeIndex) {
             Util.assert(!this.isConnected, "Connection is already connected");
             this.sourcePanel = sourcePanel;
-            this.sourceNodeIndex = sourceNodeIndex;
+            this.sourceIndex = sourceNodeIndex;
             this.targetPanel = targetPanel;
-            this.targetNodeIndex = targetNodeIndex;
-            this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesUpdated());
-            this.sourcePanel.events.listen(this, "nodesUpdated", () => this.onSourceNodesUpdated());
+            this.targetIndex = targetNodeIndex;
+            this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesMoved());
+            this.sourcePanel.events.listen(this, "nodesMoved", () => this.onSourceNodesMoved());
             this.sourcePanel.events.listen(this, "remove", () => this.remove());
-            this.targetPanel.events.listen(this, "move", () => this.onTargetNodesUpdated());
-            this.targetPanel.events.listen(this, "nodesUpdated", () => this.onTargetNodesUpdated());
+            this.targetPanel.events.listen(this, "move", () => this.onTargetNodesMoved());
+            this.targetPanel.events.listen(this, "nodesMoved", () => this.onTargetNodesMoved());
             this.targetPanel.events.listen(this, "remove", () => this.remove());
-            this.recalculateSourceNodePos();
-            this.recalculateTargetNodePos();
+            this.recalculateSourcePos();
+            this.recalculateTargetPos();
             this.establish();
             this.updateElement();
         }
@@ -424,36 +453,28 @@ var Entities;
             this.isConnected = true;
             document.body.style.cursor = "default";
             document.removeEventListener("mousemove", this.mouseMoveListener);
-            this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.remove("connecting");
-            this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.remove("connecting");
-            this.sourcePanel.events.listen(this, "outputUpdated", (index) => {
-                // Use setTimeout to prevent recursion
-                if (index === this.sourceNodeIndex)
-                    setTimeout(this.propogate.bind(this));
+            this.sourcePanel.getNodeHTML("output", this.sourceIndex).classList.remove("connecting");
+            this.targetPanel.getNodeHTML("input", this.targetIndex).classList.remove("connecting");
+            this.sourcePanel.events.listen(this, "outputUpdated", (index, value) => {
+                if (index === this.sourceIndex)
+                    this.targetPanel.setInputValue(this.targetIndex, value);
             });
-            this.propogate();
-        }
-        propogate() {
-            if (!this.isConnected)
-                return;
-            const sourceValue = this.sourcePanel.getOutputNodeValue(this.sourceNodeIndex);
-            if (sourceValue === undefined)
-                return;
-            this.targetPanel.setInputNodeValue(this.targetNodeIndex, sourceValue);
+            const value = this.sourcePanel.getOutputValue(this.sourceIndex);
+            this.targetPanel.setInputValue(this.targetIndex, value);
         }
         remove() {
             document.removeEventListener("mousemove", this.mouseMoveListener);
             document.body.style.cursor = "default";
             if (this.sourcePanel) {
                 this.sourcePanel.events.unlisten(this);
-                if (this.sourceNodeIndex < this.sourcePanel.nodeCounts.output) {
-                    this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.remove("connecting");
+                if (this.sourceIndex < this.sourcePanel.nodeCounts.output) {
+                    this.sourcePanel.getNodeHTML("output", this.sourceIndex).classList.remove("connecting");
                 }
             }
             if (this.targetPanel) {
                 this.targetPanel.events.unlisten(this);
-                if (this.targetNodeIndex < this.targetPanel.nodeCounts.input) {
-                    this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.remove("connecting");
+                if (this.targetIndex < this.targetPanel.nodeCounts.input) {
+                    this.targetPanel.getNodeHTML("input", this.targetIndex).classList.remove("connecting");
                 }
             }
             this.element.remove();
@@ -464,10 +485,10 @@ var Entities;
             this.isConnected = false;
             document.body.style.cursor = "pointer";
             document.addEventListener("mousemove", this.mouseMoveListener);
-            this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.add("connecting");
+            this.targetPanel.getNodeHTML("input", this.targetIndex).classList.add("connecting");
             this.sourcePanel.events.unlisten(this);
             this.sourcePanel = null;
-            this.sourceNodeIndex = -1;
+            this.sourceIndex = -1;
             this.updateElement();
         }
         unsetTarget() {
@@ -475,25 +496,25 @@ var Entities;
             this.isConnected = false;
             document.body.style.cursor = "pointer";
             document.addEventListener("mousemove", this.mouseMoveListener);
-            this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.add("connecting");
+            this.sourcePanel.getNodeHTML("output", this.sourceIndex).classList.add("connecting");
             this.targetPanel.events.unlisten(this);
             this.targetPanel = null;
-            this.targetNodeIndex = -1;
+            this.targetIndex = -1;
             this.updateElement();
         }
-        recalculateSourceNodePos() {
+        recalculateSourcePos() {
             if (!this.sourcePanel)
                 return;
-            const sourcePos = this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).getBoundingClientRect();
+            const sourcePos = this.sourcePanel.getNodeHTML("output", this.sourceIndex).getBoundingClientRect();
             this.sourcePos = {
                 x: sourcePos.left + sourcePos.width / 2,
                 y: sourcePos.top + sourcePos.height / 2,
             };
         }
-        recalculateTargetNodePos() {
+        recalculateTargetPos() {
             if (!this.targetPanel)
                 return;
-            const targetPos = this.targetPanel.getNodeHTML("input", this.targetNodeIndex).getBoundingClientRect();
+            const targetPos = this.targetPanel.getNodeHTML("input", this.targetIndex).getBoundingClientRect();
             this.targetPos = {
                 x: targetPos.left + targetPos.width / 2,
                 y: targetPos.top + targetPos.height / 2,
@@ -516,20 +537,22 @@ var Entities;
             this.element.setAttribute("stroke-width", "3");
             this.element.setAttribute("fill", "none");
         }
-        onSourceNodesUpdated() {
-            if (this.sourceNodeIndex >= this.sourcePanel.nodeCounts.output) {
+        onSourceNodesMoved() {
+            if (this.sourceIndex >= this.sourcePanel.nodeCounts.output) {
+                Globals.notificationManager.notify("Source node removed", this.sourcePos, "warning");
                 this.remove();
                 return;
             }
-            this.recalculateSourceNodePos();
+            this.recalculateSourcePos();
             this.updateElement();
         }
-        onTargetNodesUpdated() {
-            if (this.targetNodeIndex >= this.targetPanel.nodeCounts.input) {
+        onTargetNodesMoved() {
+            if (this.targetIndex >= this.targetPanel.nodeCounts.input) {
+                Globals.notificationManager.notify("Target node removed", this.targetPos, "warning");
                 this.remove();
                 return;
             }
-            this.recalculateTargetNodePos();
+            this.recalculateTargetPos();
             this.updateElement();
         }
         onMouseMoved(e) {
@@ -540,27 +563,15 @@ var Entities;
             if (!this.sourcePanel)
                 this.sourcePos = mousePos;
             else
-                this.recalculateSourceNodePos();
+                this.recalculateSourcePos();
             if (!this.targetPanel)
                 this.targetPos = mousePos;
             else
-                this.recalculateTargetNodePos();
+                this.recalculateTargetPos();
             this.updateElement();
         }
     }
     Entities.PanelEntityConnection = PanelEntityConnection;
-    /** Convert a message into a consistent visual element. */
-    function createMessageElement(message) {
-        const parent = Util.createHTMLElement(`<div class="message"></div>`);
-        for (const letter of message.letters) {
-            const el = Util.createHTMLElement(`<span>${letter}</span>`);
-            // Set font size based on letter length
-            el.style.fontSize = `${0.7 - (letter.length - 1) * 0.15}rem`;
-            parent.appendChild(el);
-        }
-        return parent;
-    }
-    Entities.createMessageElement = createMessageElement;
     /** PanelEntity content, displays messages. */
     class HardcodedEntity extends BaseEntity {
         panel;
@@ -570,7 +581,7 @@ var Entities;
             this.messages = messages;
             this.element.innerHTML = "";
             this.messages.forEach((message) => {
-                this.element.appendChild(createMessageElement(message));
+                this.element.appendChild(Util.createMessageElement(message));
             });
         }
         setPanel(panel) {
@@ -601,20 +612,28 @@ var Entities;
         }
         setInputNodeValue(index, value) {
             Util.assert(index == 0, "TextEntity only has one input");
-            Util.assert(isCipherMessageArray(value), "Invalid input type, expected Cipher.Message[]");
+            // Exit early with notification if the value is invalid
+            if (!Util.isCipherMessageArray(value)) {
+                const position = this.panel.getNodeHTML("input", index).getBoundingClientRect();
+                Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+                return;
+            }
+            // Exit early if the value is the same
             if (this.messages && this.messages.length === value.length && this.messages.every((m, i) => m.equals(value[i])))
                 return;
+            // Set message and visual
             this.messages = value;
             this.element.innerHTML = "";
             this.messages.forEach((message) => {
-                this.element.appendChild(createMessageElement(message));
+                this.element.appendChild(Util.createMessageElement(message));
             });
             if (this.messages.length === 0)
                 this.element.classList.add("empty");
             else
                 this.element.classList.remove("empty");
-            this.panel.events.emit("nodesUpdated", 0);
-            this.panel.events.emit("outputUpdated", 0);
+            // Trigger events
+            this.panel.events.emit("nodesMoved");
+            this.panel.events.emit("outputUpdated", 0, this.getOutputNodeValue(0));
         }
         getOutputNodeValue(index) {
             Util.assert(index == 0, "TextEntity only has one output");
@@ -638,17 +657,26 @@ var Entities;
         }
         setInputNodeValue(index, value) {
             Util.assert(index == 0, "SplitTextEntity only has one input");
-            Util.assert(isCipherMessageArray(value), "Invalid input type, expected Cipher.Message[]");
+            // Exit early with notification if the value is invalid
+            if (!Util.isCipherMessageArray(value)) {
+                const position = this.panel.getNodeHTML("input", index).getBoundingClientRect();
+                Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+                return;
+            }
+            // Exit early if the value is the same
             if (this.messages && this.messages.length === value.length && this.messages.every((m, i) => m.equals(value[i])))
                 return;
+            // Set message and visual
             this.messages = value;
             this.elementCount.innerText = this.messages.length.toString();
+            // Udate panel node counts and labels
             this.panel.setNodeCount(1, this.messages.length);
             const outputLabels = this.messages.map((_, i) => `Message ${i + 1}`);
             this.panel.setNodeLabels(["Messages"], outputLabels);
-            this.panel.events.emit("nodesUpdated", 0);
+            // Trigger events
+            this.panel.events.emit("nodesMoved");
             for (let i = 0; i < this.messages.length; i++)
-                this.panel.events.emit("outputUpdated", i);
+                this.panel.events.emit("outputUpdated", i, this.getOutputNodeValue(i));
         }
         getOutputNodeValue(index) {
             Util.assert(index < this.messages.length, "Invalid output index");
@@ -656,10 +684,37 @@ var Entities;
         }
     }
     Entities.SplitMessagesEntity = SplitMessagesEntity;
+    class BlockEntity extends BaseEntity {
+        panel;
+        constructor() {
+            super(`<div class="block-entity"></div>`);
+        }
+        setPanel(panel) {
+            this.panel = panel;
+            panel.setNodeCount(1, 0);
+            panel.setNodeLabels(["Blocked"], null);
+        }
+        setInputNodeValue(index, value) {
+            Util.assert(index == 0, "BlockEntity only has one input");
+            const position = this.panel.getNodeHTML("input", index).getBoundingClientRect();
+            Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+            // Globals.notificationManager.notify(
+            //     "BlockEntity does not accept any inputs",
+            //     { x: this.panel.position.x - 40, y: this.panel.position.y - 40 },
+            //     "error"
+            // );
+        }
+        getOutputNodeValue(index) {
+            Util.assert(false, "BlockEntity does not have any outputs");
+            return [];
+        }
+    }
+    Entities.BlockEntity = BlockEntity;
 })(Entities || (Entities = {}));
 (function () {
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.svgContainer = document.querySelector(".svg-container");
+    Globals.notificationManager = new Entities.NotificationManager(document.querySelector(".notification-container"));
     Globals.panelEntityManager = new Entities.PanelEntityManager();
     const p1 = new Entities.PanelEntity(new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
     const p2 = new Entities.PanelEntity(new Entities.HardcodedEntity([
@@ -671,11 +726,13 @@ var Entities;
     const p6 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
     const p4 = new Entities.PanelEntity(new Entities.SplitMessagesEntity(), "Split");
     const p5 = new Entities.PanelEntity(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
+    const p7 = new Entities.PanelEntity(new Entities.BlockEntity(), "Block");
     p1.setPosition(70, 50);
     p2.setPosition(40, 300);
     p5.setPosition(40, 550);
     p3.setPosition(550, 100);
     p6.setPosition(550, 250);
     p4.setPosition(580, 400);
+    p7.setPosition(550, 550);
     Globals.panelEntityManager.connect(p1, 0, p3, 0);
 })();

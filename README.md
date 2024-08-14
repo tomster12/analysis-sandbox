@@ -15,6 +15,7 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
+- Directly hookup propogation to allow depth / tracking
 - Notification manager for popups for invalid types / sockets changed
 - Panels clear with connection removal
 - Click and grab to scroll around world instead of rudimentary scrolling
