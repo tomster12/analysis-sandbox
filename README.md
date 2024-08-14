@@ -2,7 +2,18 @@
 
 https://tomster12.github.io/web-analysis-2/
 
-## TODO
+## Planned Features
+
+- Panel Types:
+  - Input
+  - Processing (lowercase, uppercase, mathematical, To / from ascii)
+  - Preview (Direct, summary graphs)
+  - Analysis (Gap distances)
+- Serialization for import / export
+- Toggleable previews in panels
+- Renamable panels
+
+## To-Do
 
 - Simpler system for unsubscribing all event
 - Connections removed on nodes changed if needed
