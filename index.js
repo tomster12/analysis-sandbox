@@ -25,24 +25,31 @@ var Util;
     Util.assert = assert;
     /** A simple event bus for passing events between to listeners. */
     class EventBus {
-        events;
+        eventToHandleToFunc;
+        handleToEvent;
         constructor() {
-            this.events = {};
+            this.eventToHandleToFunc = {};
+            this.handleToEvent = new Map();
         }
-        on(event, callback) {
-            if (!this.events[event])
-                this.events[event] = [];
-            this.events[event].push(callback);
+        listen(listener, event, callback) {
+            if (!this.eventToHandleToFunc[event])
+                this.eventToHandleToFunc[event] = new Map();
+            this.eventToHandleToFunc[event].set(listener, callback);
+            if (!this.handleToEvent.has(listener))
+                this.handleToEvent.set(listener, []);
+            this.handleToEvent.get(listener).push(event);
         }
-        remove(event, callback) {
-            if (!this.events[event])
-                return;
-            this.events[event] = this.events[event].filter((cb) => cb !== callback);
+        unlisten(handle) {
+            Util.assert(this.handleToEvent.has(handle), "Handle does not exist");
+            for (const event of this.handleToEvent.get(handle))
+                this.eventToHandleToFunc[event].delete(handle);
+            this.handleToEvent.delete(handle);
         }
         emit(event, ...args) {
-            if (!this.events[event])
+            if (this.eventToHandleToFunc[event] === undefined)
                 return;
-            this.events[event].forEach((callback) => callback(...args));
+            for (const [listener, callback] of this.eventToHandleToFunc[event])
+                callback(...args);
         }
     }
     Util.EventBus = EventBus;
@@ -244,8 +251,8 @@ var Entities;
             Globals.mainContainer.addEventListener("mousedown", (e) => this.onMainMouseDown(e));
         }
         registerPanel(panel) {
-            panel.events.on("remove", this.onPanelRemoved.bind(this));
-            panel.events.on("nodeClicked", (type, index) => {
+            panel.events.listen(this, "remove", (panel) => this.onPanelRemoved(panel));
+            panel.events.listen(this, "nodeClicked", (type, index) => {
                 if (type === "input")
                     this.connectInputNode(panel, index);
                 else
@@ -316,10 +323,11 @@ var Entities;
                 this.currentConnection.setSource(panel, nodeIndex);
             }
         }
-        removeConnection(connection) {
+        onConnectionRemoved(connection) {
             this.connections = this.connections.filter((c) => c !== connection);
         }
         onPanelRemoved(panel) {
+            panel.events.unlisten(this);
             this.panels = this.panels.filter((p) => p !== panel);
         }
         onMainMouseDown(e) {
@@ -341,16 +349,10 @@ var Entities;
         targetNodeIndex;
         sourcePos;
         targetPos;
-        mouseMoveListener;
-        sourceNodesUpdatedListener;
-        targetNodesUpdatedListener;
-        sourceOutputUpdateListener;
-        removeListener;
+        mouseMoveListener = (e) => this.onMouseMoved(e);
         constructor() {
             this.element = document.createElementNS("http://www.w3.org/2000/svg", "path");
             Globals.svgContainer.appendChild(this.element);
-            this.mouseMoveListener = this.onMouseMoved.bind(this);
-            this.removeListener = this.remove.bind(this);
             document.addEventListener("mousemove", this.mouseMoveListener);
             this.isConnected = false;
         }
@@ -358,83 +360,47 @@ var Entities;
             Util.assert(!this.isConnected, "Connection is already connected");
             this.sourcePanel = panel;
             this.sourceNodeIndex = nodeIndex;
-            this.sourceNodesUpdatedListener = () => {
-                this.recalculateSourceNodePos();
-                this.updateElement();
-            };
-            this.sourcePanel.events.on("move", this.sourceNodesUpdatedListener);
-            this.sourcePanel.events.on("nodesUpdated", this.sourceNodesUpdatedListener);
-            this.sourcePanel.events.on("remove", this.removeListener);
+            this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesUpdated());
+            this.sourcePanel.events.listen(this, "nodesUpdated", () => this.onSourceNodesUpdated());
+            this.sourcePanel.events.listen(this, "remove", () => this.remove());
             this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.add("connecting");
-            this.recalculateSourceNodePos();
             if (this.targetPanel)
                 this.establish();
-            else {
+            this.recalculateSourceNodePos();
+            if (!this.targetPos)
                 this.targetPos = this.sourcePos;
+            if (!this.isConnected)
                 document.body.style.cursor = "pointer";
-            }
             this.updateElement();
         }
         setTarget(panel, nodeIndex) {
             Util.assert(!this.isConnected, "Connection is already connected");
             this.targetPanel = panel;
             this.targetNodeIndex = nodeIndex;
-            this.targetNodesUpdatedListener = () => {
-                this.recalculateTargetNodePos();
-                this.updateElement();
-            };
-            this.targetPanel.events.on("move", this.targetNodesUpdatedListener);
-            this.targetPanel.events.on("nodesUpdated", this.targetNodesUpdatedListener);
-            this.targetPanel.events.on("remove", this.removeListener);
+            this.targetPanel.events.listen(this, "move", () => this.onTargetNodesUpdated());
+            this.targetPanel.events.listen(this, "nodesUpdated", () => this.onTargetNodesUpdated());
+            this.targetPanel.events.listen(this, "remove", () => this.remove());
             this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.add("connecting");
             if (this.sourcePanel)
                 this.establish();
-            else {
-                this.recalculateTargetNodePos();
+            this.recalculateTargetNodePos();
+            if (!this.sourcePos)
                 this.sourcePos = this.targetPos;
+            if (!this.isConnected)
                 document.body.style.cursor = "pointer";
-            }
-            this.updateElement();
-        }
-        unsetSource() {
-            Util.assert(this.isConnected, "Connection is not connected");
-            this.isConnected = false;
-            document.body.style.cursor = "pointer";
-            this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.add("connecting");
-            document.addEventListener("mousemove", this.mouseMoveListener);
-            this.sourcePanel.events.remove("move", this.sourceNodesUpdatedListener);
-            this.sourcePanel.events.remove("nodesUpdated", this.sourceNodesUpdatedListener);
-            this.sourcePanel.events.remove("remove", this.removeListener);
-            this.sourcePanel.events.remove("outputUpdated", this.sourceOutputUpdateListener);
-            this.sourcePanel = null;
-            this.sourceNodeIndex = -1;
-            this.updateElement();
-        }
-        unsetTarget() {
-            Util.assert(this.isConnected, "Connection is not connected");
-            this.isConnected = false;
-            document.body.style.cursor = "pointer";
-            this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.add("connecting");
-            document.addEventListener("mousemove", this.mouseMoveListener);
-            this.targetPanel.events.remove("move", this.targetNodesUpdatedListener);
-            this.targetPanel.events.remove("nodesUpdated", this.targetNodesUpdatedListener);
-            this.targetPanel.events.remove("remove", this.removeListener);
-            this.targetPanel = null;
-            this.targetNodeIndex = -1;
             this.updateElement();
         }
         establish() {
             this.isConnected = true;
-            this.sourceOutputUpdateListener = (index) => {
-                if (index === this.sourceNodeIndex)
-                    this.propogate();
-            };
             document.body.style.cursor = "default";
-            this.sourcePanel.events.on("outputUpdated", this.sourceOutputUpdateListener);
+            document.removeEventListener("mousemove", this.mouseMoveListener);
             this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.remove("connecting");
             this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.remove("connecting");
+            this.sourcePanel.events.listen(this, "outputUpdated", (index) => {
+                if (index === this.sourceNodeIndex)
+                    this.propogate();
+            });
             this.propogate();
-            this.recalculateTargetNodePos();
         }
         propogate() {
             if (!this.isConnected)
@@ -445,24 +411,40 @@ var Entities;
             this.targetPanel.setInputNodeValue(this.targetNodeIndex, sourceValue);
         }
         remove() {
-            document.body.style.cursor = "default";
             document.removeEventListener("mousemove", this.mouseMoveListener);
+            document.body.style.cursor = "default";
             if (this.sourcePanel) {
-                this.sourcePanel.events.remove("move", this.sourceNodesUpdatedListener);
-                this.sourcePanel.events.remove("nodesUpdated", this.sourceNodesUpdatedListener);
-                this.sourcePanel.events.remove("remove", this.removeListener);
+                this.sourcePanel.events.unlisten(this);
                 this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.remove("connecting");
             }
             if (this.targetPanel) {
-                this.targetPanel.events.remove("move", this.targetNodesUpdatedListener);
-                this.targetPanel.events.remove("nodesUpdated", this.targetNodesUpdatedListener);
-                this.targetPanel.events.remove("remove", this.removeListener);
+                this.targetPanel.events.unlisten(this);
                 this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.remove("connecting");
             }
-            if (this.isConnected)
-                this.sourcePanel.events.remove("outputUpdated", this.sourceOutputUpdateListener);
-            Globals.PanelEntityManager.removeConnection(this);
+            Globals.PanelEntityManager.onConnectionRemoved(this);
             this.element.remove();
+        }
+        unsetSource() {
+            Util.assert(this.isConnected, "Connection is not connected");
+            this.isConnected = false;
+            document.body.style.cursor = "pointer";
+            document.addEventListener("mousemove", this.mouseMoveListener);
+            this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.add("connecting");
+            this.sourcePanel.events.unlisten(this);
+            this.sourcePanel = null;
+            this.sourceNodeIndex = -1;
+            this.updateElement();
+        }
+        unsetTarget() {
+            Util.assert(this.isConnected, "Connection is not connected");
+            this.isConnected = false;
+            document.body.style.cursor = "pointer";
+            document.addEventListener("mousemove", this.mouseMoveListener);
+            this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.add("connecting");
+            this.targetPanel.events.unlisten(this);
+            this.targetPanel = null;
+            this.targetNodeIndex = -1;
+            this.updateElement();
         }
         recalculateSourceNodePos() {
             if (!this.sourcePanel)
@@ -498,6 +480,14 @@ var Entities;
             this.element.setAttribute("stroke", "#d7d7d7");
             this.element.setAttribute("stroke-width", "3");
             this.element.setAttribute("fill", "none");
+        }
+        onSourceNodesUpdated() {
+            this.recalculateSourceNodePos();
+            this.updateElement();
+        }
+        onTargetNodesUpdated() {
+            this.recalculateTargetNodePos();
+            this.updateElement();
         }
         onMouseMoved(e) {
             // Stop caring the mouse position if it's already connected

@@ -15,9 +15,9 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
-- Simpler system for unsubscribing all events
 - Connections removed on nodes changed if needed
 - Multiple outputs from a node
+- Easier programmatic connection creating
 - Node typing system
 - Notification manager for popups for invalid types / sockets changed
 - Click and grab to scroll around world instead of rudimentary scrolling
