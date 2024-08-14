@@ -15,10 +15,9 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
-- Connections removed on nodes changed if needed
-- Multiple outputs from a node
 - Easier programmatic connection creating
 - Node typing system
+- Prevent recursion issues
 - Notification manager for popups for invalid types / sockets changed
 - Click and grab to scroll around world instead of rudimentary scrolling
 - Node add menu for available panel types

@@ -280,21 +280,21 @@ namespace Entities {
         registerPanel(panel: PanelEntity) {
             panel.events.listen(this, "remove", (panel: PanelEntity) => this.onPanelRemoved(panel));
             panel.events.listen(this, "nodeClicked", (type: PanelEntityNodeType, index: number) => {
-                if (type === "input") this.connectInputNode(panel, index);
-                else this.connectOutputNode(panel, index);
+                if (type === "input") this.connectTargetNode(panel, index);
+                else this.connectSourceNode(panel, index);
             });
         }
 
-        connectInputNode(panel: PanelEntity, nodeIndex: number) {
+        connectTargetNode(panel: PanelEntity, nodeIndex: number) {
             if (this.currentConnection) {
-                // Holding connection, remove if the connecting to self
+                // Dont allow single panel loops or target -> target connections
                 if (this.currentConnection.sourcePanel === panel || this.currentConnection.targetPanel != null) {
                     this.currentConnection.remove();
                     this.currentConnection = null;
                     return;
                 }
 
-                // Overwrite any existing connections
+                // Delete any connections with same target
                 const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetNodeIndex === nodeIndex);
                 if (existingConnection) existingConnection.remove();
 
@@ -305,7 +305,7 @@ namespace Entities {
                     this.currentConnection = null;
                 }
             } else {
-                // Check if the node is already connected, and if so grab
+                // Check if the target node is already connected, and if so grab connection
                 const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetNodeIndex === nodeIndex);
                 if (existingConnection) {
                     this.currentConnection = existingConnection;
@@ -313,24 +313,34 @@ namespace Entities {
                     return;
                 }
 
-                // Otherwise start a new connection if not holding one
+                // Otherwise start a new connection with the target
                 this.currentConnection = new PanelEntityConnection();
                 this.currentConnection.setTarget(panel, nodeIndex);
             }
         }
 
-        connectOutputNode(panel: PanelEntity, nodeIndex: number) {
+        connectSourceNode(panel: PanelEntity, nodeIndex: number) {
             if (this.currentConnection) {
-                // Holding connection, remove if the connecting to self
+                // Dont allow single panel loops or source -> source connections
                 if (this.currentConnection.targetPanel === panel || this.currentConnection.sourcePanel != null) {
                     this.currentConnection.remove();
                     this.currentConnection = null;
                     return;
                 }
 
-                // Overwrite any existing connections
-                const existingConnection = this.connections.find((c) => c.sourcePanel === panel && c.sourceNodeIndex === nodeIndex);
-                if (existingConnection) existingConnection.remove();
+                // Dont allow if connection already exists
+                const existingConnection = this.connections.find(
+                    (c) =>
+                        c.sourcePanel === panel &&
+                        c.sourceNodeIndex === nodeIndex &&
+                        c.targetPanel === this.currentConnection.targetPanel &&
+                        c.targetNodeIndex === this.currentConnection.targetNodeIndex
+                );
+                if (existingConnection) {
+                    this.currentConnection.remove();
+                    this.currentConnection = null;
+                    return;
+                }
 
                 // Connect the source node and finish if needed
                 this.currentConnection.setSource(panel, nodeIndex);
@@ -339,15 +349,7 @@ namespace Entities {
                     this.currentConnection = null;
                 }
             } else {
-                // Check if the node is already connected, and if so grab
-                const existingConnection = this.connections.find((c) => c.sourcePanel === panel && c.sourceNodeIndex === nodeIndex);
-                if (existingConnection) {
-                    this.currentConnection = existingConnection;
-                    this.currentConnection.unsetSource();
-                    return;
-                }
-
-                // Otherwise start a new connection if not holding one
+                // Start a new connection if not holding one
                 this.currentConnection = new PanelEntityConnection();
                 this.currentConnection.setSource(panel, nodeIndex);
             }
@@ -451,14 +453,18 @@ namespace Entities {
             document.body.style.cursor = "default";
             if (this.sourcePanel) {
                 this.sourcePanel.events.unlisten(this);
-                this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.remove("connecting");
+                if (this.sourceNodeIndex < this.sourcePanel.nodeCounts.output) {
+                    this.sourcePanel.getNodeHTML("output", this.sourceNodeIndex).classList.remove("connecting");
+                }
             }
             if (this.targetPanel) {
                 this.targetPanel.events.unlisten(this);
-                this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.remove("connecting");
+                if (this.targetNodeIndex < this.targetPanel.nodeCounts.input) {
+                    this.targetPanel.getNodeHTML("input", this.targetNodeIndex).classList.remove("connecting");
+                }
             }
-            Globals.PanelEntityManager.onConnectionRemoved(this);
             this.element.remove();
+            Globals.PanelEntityManager.onConnectionRemoved(this);
         }
 
         unsetSource() {
@@ -524,11 +530,21 @@ namespace Entities {
         }
 
         onSourceNodesUpdated() {
+            if (this.sourceNodeIndex >= this.sourcePanel.nodeCounts.output) {
+                this.remove();
+                return;
+            }
+
             this.recalculateSourceNodePos();
             this.updateElement();
         }
 
         onTargetNodesUpdated() {
+            if (this.targetNodeIndex >= this.targetPanel.nodeCounts.input) {
+                this.remove();
+                return;
+            }
+
             this.recalculateTargetNodePos();
             this.updateElement();
         }
