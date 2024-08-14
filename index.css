@@ -7,12 +7,12 @@
 
 @font-face {
     font-family: "Oxygen";
-    src: url("oxygen-regular.ttf");
+    src: url("assets/oxygen-regular.ttf");
 }
 
 @font-face {
     font-family: "Cousine";
-    src: url("cousine-regular.ttf");
+    src: url("assets/cousine-regular.ttf");
 }
 
 :root {
@@ -28,7 +28,7 @@
     width: 100%;
     height: 100%;
     background-color: rgb(58, 58, 65);
-    background-image: url("grid.png");
+    background-image: url("assets/grid.png");
     background-size: 5rem;
     overflow: scroll;
 }
@@ -100,7 +100,7 @@
     transition: background-color 0.1s;
     background-color: #d55e5e;
     cursor: pointer;
-    content: url("close.png");
+    content: url("assets/close.png");
     padding: 0.28rem;
     cursor: pointer;
 }
