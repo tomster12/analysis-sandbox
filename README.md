@@ -1,4 +1,4 @@
-# Web Analysis 2
+# Analysis Sandbox
 
 https://tomster12.github.io/web-analysis-2/
 
