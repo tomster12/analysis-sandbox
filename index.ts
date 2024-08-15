@@ -246,6 +246,9 @@ namespace Entities {
                         e.stopPropagation();
                         this.events.emit("nodeClicked", "output", i);
                     });
+                    el.addEventListener("mouseover", () => {
+                        this.setNodeValid("output", i, true);
+                    });
                     this.elementNodesOutput.appendChild(el);
                 }
             }
@@ -256,10 +259,12 @@ namespace Entities {
         }
 
         setNodeLabels(inputLabels: string[] | null, outputLabels: string[] | null) {
-            this.nodeLabels.input = inputLabels;
-            this.nodeLabels.output = outputLabels;
             Util.assert(inputLabels == null || inputLabels.length == this.nodeCounts.input, "inputLabels wrong length.");
             Util.assert(outputLabels == null || outputLabels.length == this.nodeCounts.output, "outputLabels wrong length.");
+
+            this.nodeLabels.input = inputLabels;
+            this.nodeLabels.output = outputLabels;
+
             for (let i = 0; i < this.nodeCounts.input; i++) {
                 if (inputLabels == null) this.getNodeHTML("input", i).innerHTML = "";
                 else this.getNodeHTML("input", i).innerHTML = `<span>${inputLabels[i]}</span>`;
@@ -268,6 +273,10 @@ namespace Entities {
                 if (outputLabels == null) this.getNodeHTML("output", i).innerHTML = "";
                 else this.getNodeHTML("output", i).innerHTML = `<span>${outputLabels[i]}</span>`;
             }
+        }
+
+        setNodeValid(type: PanelEntityNodeType, index: number, valid: boolean) {
+            this.getNodeHTML(type, index).classList.toggle("valid", valid);
         }
 
         getNodeHTML(type: PanelEntityNodeType, index: number): HTMLElement {
@@ -833,13 +842,13 @@ namespace Entities {
 
     const p7 = new Entities.PanelEntity(new Entities.BlockEntity(), "Block");
 
-    p1.setPosition(70, 50);
-    p2.setPosition(40, 300);
-    p5.setPosition(40, 550);
-    p3.setPosition(550, 100);
-    p6.setPosition(550, 250);
-    p4.setPosition(580, 400);
-    p7.setPosition(550, 550);
+    p1.setPosition(70, 100);
+    p2.setPosition(40, 350);
+    p5.setPosition(40, 600);
+    p3.setPosition(550, 150);
+    p6.setPosition(550, 300);
+    p4.setPosition(580, 450);
+    p7.setPosition(550, 600);
 
     Globals.panelEntityManager.connect(p1, 0, p3, 0);
 })();
