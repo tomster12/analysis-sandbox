@@ -61,6 +61,12 @@
     border-radius: 1rem;
     display: flex;
     box-shadow: 0 0.2rem 0.6rem -0.05rem #1b1b1b;
+    opacity: 1;
+    transition: opacity 0.5s;
+}
+
+.notification.closing {
+    opacity: 0;
 }
 
 .notification span {

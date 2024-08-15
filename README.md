@@ -15,7 +15,7 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
-- Fading and UX for notifications
+- Label colouring for types / blocked
 - Dont allow connections on invalid types
 - Panels clear with connection removal
 - Click and grab to scroll around world instead of rudimentary scrolling

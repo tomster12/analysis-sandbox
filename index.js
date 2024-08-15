@@ -135,7 +135,12 @@ var Entities;
                 </div>`);
             el.setPosition(position.x, position.y);
             el.setParent(this.container);
-            setTimeout(() => el.remove(), 3000);
+            setTimeout(() => {
+                el.element.classList.add("closing");
+                setTimeout(() => {
+                    el.remove();
+                }, 500);
+            }, 1200);
         }
     }
     Entities.NotificationManager = NotificationManager;
@@ -587,7 +592,7 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             this.panel.setNodeCount(0, 1);
-            this.panel.setNodeLabels(null, ["Messages"]);
+            this.panel.setNodeLabels(null, ["Message[]"]);
         }
         setInputNodeValue(_index, _value) {
             Util.assert(false, "TextEntity does not have any inputs");
@@ -608,7 +613,7 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             this.panel.setNodeCount(1, 1);
-            this.panel.setNodeLabels(["Messages"], ["Passthrough"]);
+            this.panel.setNodeLabels(["Message[]"], ["Message[]"]);
         }
         setInputNodeValue(index, value) {
             Util.assert(index == 0, "TextEntity only has one input");
@@ -653,7 +658,7 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             this.panel.setNodeCount(1, 0);
-            this.panel.setNodeLabels(["Messages"], null);
+            this.panel.setNodeLabels(["Messages[]"], null);
         }
         setInputNodeValue(index, value) {
             Util.assert(index == 0, "SplitTextEntity only has one input");
@@ -671,8 +676,8 @@ var Entities;
             this.elementCount.innerText = this.messages.length.toString();
             // Udate panel node counts and labels
             this.panel.setNodeCount(1, this.messages.length);
-            const outputLabels = this.messages.map((_, i) => `Message ${i + 1}`);
-            this.panel.setNodeLabels(["Messages"], outputLabels);
+            const outputLabels = this.messages.map((_, i) => `Message[]`);
+            this.panel.setNodeLabels(["Message[]"], outputLabels);
             // Trigger events
             this.panel.events.emit("nodesMoved");
             for (let i = 0; i < this.messages.length; i++)
@@ -692,7 +697,7 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             panel.setNodeCount(1, 0);
-            panel.setNodeLabels(["Blocked"], null);
+            panel.setNodeLabels(["none"], null);
         }
         setInputNodeValue(index, value) {
             Util.assert(index == 0, "BlockEntity only has one input");
