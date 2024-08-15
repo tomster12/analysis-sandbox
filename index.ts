@@ -258,7 +258,7 @@ namespace Entities {
             this.events.emit("nodesMoved", this.position);
         }
 
-        setNodeLabels(inputLabels: string[] | null, outputLabels: string[] | null) {
+        setNodeLabels(inputLabels: string[], outputLabels: string[]) {
             Util.assert(inputLabels == null || inputLabels.length == this.nodeCounts.input, "inputLabels wrong length.");
             Util.assert(outputLabels == null || outputLabels.length == this.nodeCounts.output, "outputLabels wrong length.");
 
