@@ -15,8 +15,6 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
-- Refactor panel nodes
-- Make nodes mouse hover box slightly larger
 - Label colouring for types / blocked
 - Dont allow connections on invalid types
 - Panels clear with connection removal

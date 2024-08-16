@@ -214,7 +214,12 @@ var Entities;
             Globals.panelEntityManager.registerPanel(this);
         }
         createNode(type, index) {
-            const element = Util.createHTMLElement(`<div class="panel-entity-node"><div class="indicator"></div><span class="label"></span></div>`);
+            const element = Util.createHTMLElement(`
+                <div class="panel-entity-node">
+                    <div class="hover-box"></div>
+                    <div class="indicator"></div>
+                    <span class="label"></span>
+                </div>`);
             const elementIndicator = element.querySelector(".indicator");
             const elementLabel = element.querySelector(".label");
             element.addEventListener("mousedown", (e) => {
@@ -674,12 +679,10 @@ var Entities;
             this.messages = value;
             this.elementCount.innerText = this.messages.length.toString();
             // Udate panel node counts and labels
-            console.log("Reinitializing nodes");
             this.panel.reinitializeNodes(1, this.messages.length);
             this.panel.nodes.input[0].setLabel("Message[]");
             for (let i = 0; i < this.messages.length; i++)
                 this.panel.nodes.output[i].setLabel("Message[]");
-            console.log(this.panel.nodes.output);
             // Trigger events
             this.panel.events.emit("nodesUpdated");
             for (let i = 0; i < this.messages.length; i++)
