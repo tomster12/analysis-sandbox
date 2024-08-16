@@ -260,6 +260,16 @@ namespace Entities {
             const elementIndicator: HTMLElement = element.querySelector(".indicator");
             const elementLabel: HTMLElement = element.querySelector(".label");
 
+            element.addEventListener("mouseenter", (e) => {
+                e.stopPropagation();
+                this.events.emit("nodeHovered", type, index);
+            });
+
+            element.addEventListener("mouseleave", (e) => {
+                e.stopPropagation();
+                this.events.emit("nodeUnhovered", type, index);
+            });
+
             element.addEventListener("mousedown", (e) => {
                 e.stopPropagation();
                 this.events.emit("nodeClicked", type, index);
@@ -298,6 +308,10 @@ namespace Entities {
 
         getOutput(index: number): PanelEntityValue {
             return this.content.getOutput(index);
+        }
+
+        getNodeType(type: PanelEntityNodeType, index: number) {
+            return "Message[]";
         }
 
         onBarMouseDown(e: MouseEvent) {
@@ -343,48 +357,30 @@ namespace Entities {
 
         registerPanel(panel: PanelEntity) {
             this.panels.push(panel);
+
             panel.events.listen(this, "remove", (panel: PanelEntity) => this.onPanelRemoved(panel));
+
+            panel.events.listen(this, "nodeHovered", (type: PanelEntityNodeType, index: number) => {
+                this.onHoverNode(panel, type, index);
+            });
+
+            panel.events.listen(this, "nodeUnhovered", (type: PanelEntityNodeType, index: number) => {
+                this.onUnhoverNode(panel, type, index);
+            });
+
             panel.events.listen(this, "nodeClicked", (type: PanelEntityNodeType, index: number) => {
-                if (type === "input") this.connectTarget(panel, index);
-                else this.connectSource(panel, index);
+                if (type === "input") this.onClickTargetNode(panel, index);
+                else this.onClickSourceNode(panel, index);
             });
         }
 
-        connectTarget(panel: PanelEntity, nodeIndex: number) {
-            if (this.currentConnection) {
-                // Dont allow single panel loops or target -> target connections
-                if (this.currentConnection.sourcePanel === panel || this.currentConnection.targetPanel != null) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
-                    return;
-                }
-
-                // Delete any connections with same target
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === nodeIndex);
-                if (existingConnection) existingConnection.remove();
-
-                // Connect the target node and finish if needed
-                this.currentConnection.setTarget(panel, nodeIndex);
-                if (this.currentConnection.isConnected) {
-                    this.connections.push(this.currentConnection);
-                    this.currentConnection = null;
-                }
-            } else {
-                // Check if the target node is already connected, and if so grab connection
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === nodeIndex);
-                if (existingConnection) {
-                    this.currentConnection = existingConnection;
-                    this.currentConnection.unsetTarget();
-                    return;
-                }
-
-                // Otherwise start a new connection with the target
-                this.currentConnection = new PanelEntityConnection();
-                this.currentConnection.setTarget(panel, nodeIndex);
-            }
+        connect(sourcePanel: PanelEntity, sourceindex: number, targetPanel: PanelEntity, targetindex: number) {
+            const connection = new PanelEntityConnection();
+            connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
+            this.connections.push(connection);
         }
 
-        connectSource(panel: PanelEntity, nodeIndex: number) {
+        onClickSourceNode(panel: PanelEntity, index: number) {
             if (this.currentConnection) {
                 // Dont allow single panel loops or source -> source connections
                 if (this.currentConnection.targetPanel === panel || this.currentConnection.sourcePanel != null) {
@@ -397,7 +393,7 @@ namespace Entities {
                 const existingConnection = this.connections.find(
                     (c) =>
                         c.sourcePanel === panel &&
-                        c.sourceIndex === nodeIndex &&
+                        c.sourceIndex === index &&
                         c.targetPanel === this.currentConnection.targetPanel &&
                         c.targetIndex === this.currentConnection.targetIndex
                 );
@@ -408,7 +404,7 @@ namespace Entities {
                 }
 
                 // Connect the source node and finish if needed
-                this.currentConnection.setSource(panel, nodeIndex);
+                this.currentConnection.setSource(panel, index);
                 if (this.currentConnection.isConnected) {
                     this.connections.push(this.currentConnection);
                     this.currentConnection = null;
@@ -416,15 +412,47 @@ namespace Entities {
             } else {
                 // Start a new connection if not holding one
                 this.currentConnection = new PanelEntityConnection();
-                this.currentConnection.setSource(panel, nodeIndex);
+                this.currentConnection.setSource(panel, index);
             }
         }
 
-        connect(sourcePanel: PanelEntity, sourceNodeIndex: number, targetPanel: PanelEntity, targetNodeIndex: number) {
-            const connection = new PanelEntityConnection();
-            connection.set(sourcePanel, sourceNodeIndex, targetPanel, targetNodeIndex);
-            this.connections.push(connection);
+        onClickTargetNode(panel: PanelEntity, index: number) {
+            if (this.currentConnection) {
+                // Dont allow single panel loops or target -> target connections
+                if (this.currentConnection.sourcePanel === panel || this.currentConnection.targetPanel != null) {
+                    this.currentConnection.remove();
+                    this.currentConnection = null;
+                    return;
+                }
+
+                // Delete any connections with same target
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
+                if (existingConnection) existingConnection.remove();
+
+                // Connect the target node and finish if needed
+                this.currentConnection.setTarget(panel, index);
+                if (this.currentConnection.isConnected) {
+                    this.connections.push(this.currentConnection);
+                    this.currentConnection = null;
+                }
+            } else {
+                // Check if the target node is already connected, and if so grab connection
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
+                if (existingConnection) {
+                    this.currentConnection = existingConnection;
+                    this.currentConnection.unsetTarget();
+                    return;
+                }
+
+                // Otherwise start a new connection with the target
+                this.currentConnection = new PanelEntityConnection();
+                this.currentConnection.setTarget(panel, index);
+            }
         }
+
+        onHoverNode(pane: PanelEntity, type: PanelEntityNodeType, index: number) {}
+
+        onUnhoverNode(pane: PanelEntity, type: PanelEntityNodeType, index: number) {}
 
         onConnectionRemoved(connection: PanelEntityConnection) {
             this.connections = this.connections.filter((c) => c !== connection);
@@ -463,11 +491,11 @@ namespace Entities {
             this.isConnected = false;
         }
 
-        setSource(panel: PanelEntity, nodeIndex: number) {
+        setSource(panel: PanelEntity, index: number) {
             Util.assert(!this.isConnected, "Connection is already connected");
 
             this.sourcePanel = panel;
-            this.sourceIndex = nodeIndex;
+            this.sourceIndex = index;
             this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesUpdated());
             this.sourcePanel.events.listen(this, "nodesUpdated", () => this.onSourceNodesUpdated());
             this.sourcePanel.events.listen(this, "remove", () => this.remove());
@@ -481,11 +509,11 @@ namespace Entities {
             this.updateElement();
         }
 
-        setTarget(panel: PanelEntity, nodeIndex: number) {
+        setTarget(panel: PanelEntity, index: number) {
             Util.assert(!this.isConnected, "Connection is already connected");
 
             this.targetPanel = panel;
-            this.targetIndex = nodeIndex;
+            this.targetIndex = index;
             this.targetPanel.events.listen(this, "move", () => this.onTargetNodesUpdated());
             this.targetPanel.events.listen(this, "nodesUpdated", () => this.onTargetNodesUpdated());
             this.targetPanel.events.listen(this, "remove", () => this.remove());
@@ -499,13 +527,22 @@ namespace Entities {
             this.updateElement();
         }
 
-        set(sourcePanel: PanelEntity, sourceNodeIndex: number, targetPanel: PanelEntity, targetNodeIndex: number) {
+        canConnectWith(panel: PanelEntity, type: PanelEntityNodeType, index: number): boolean {
+            if (this.isConnected) return false;
+            if (this.sourcePanel != null && type == "output") return null;
+            if (this.targetPanel != null && type == "input") return null;
+            if (this.sourcePanel != null) return this.sourcePanel.getNodeType("output", this.sourceIndex) == panel.getNodeType(type, index);
+            if (this.targetPanel != null) return this.targetPanel.getNodeType("input", this.targetIndex) == panel.getNodeType(type, index);
+            return false;
+        }
+
+        set(sourcePanel: PanelEntity, sourceindex: number, targetPanel: PanelEntity, targetindex: number) {
             Util.assert(!this.isConnected, "Connection is already connected");
 
             this.sourcePanel = sourcePanel;
-            this.sourceIndex = sourceNodeIndex;
+            this.sourceIndex = sourceindex;
             this.targetPanel = targetPanel;
-            this.targetIndex = targetNodeIndex;
+            this.targetIndex = targetindex;
             this.sourcePanel.events.listen(this, "move", () => this.onSourceNodesUpdated());
             this.sourcePanel.events.listen(this, "nodesUpdated", () => this.onSourceNodesUpdated());
             this.sourcePanel.events.listen(this, "remove", () => this.remove());
