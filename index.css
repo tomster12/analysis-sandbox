@@ -240,31 +240,36 @@
 
 .panel-entity-nodes.input {
     position: relative;
-    left: -0.8rem;
+    left: -0.9rem;
 }
 
 .panel-entity-nodes.output {
     position: relative;
-    right: -0.8rem;
+    right: -0.9rem;
 }
 
 .panel-entity-node {
+    position: relative;
+    /* background-color: red; */
+    cursor: pointer;
+    overflow: visible;
+}
+
+.panel-entity-node .indicator {
     position: relative;
     width: 0.7rem;
     height: 0.7rem;
     border-radius: 0.4rem;
     box-shadow: 0 0.03rem 0.3rem 0 #151515d6;
-    cursor: pointer;
-    overflow: visible;
-    transition: background-color 0.1s;
     background-color: rgb(214, 214, 214);
+    transition: background-color 0.1s;
 }
 
-.panel-entity-node:hover {
+.panel-entity-node:hover .indicator {
     background-color: #f7f7f7;
 }
 
-.panel-entity-node span {
+.panel-entity-node .label {
     position: absolute;
     font-size: 0.7rem;
     top: 50%;
@@ -278,22 +283,22 @@
     white-space: nowrap;
 }
 
-.panel-entity-node:hover span {
+.panel-entity-node:hover .label {
     background-color: #7c7c7c42;
     color: #d3d3d3;
 }
 
-.panel-entity-node.connecting span {
+.panel-entity-node.connecting .label {
     background-color: #7c7c7ca6;
     color: #e5e5e5;
 }
 
-.panel-entity-nodes.input .panel-entity-node span {
+.panel-entity-nodes.input .panel-entity-node .label {
     text-align: right;
     right: 1rem;
 }
 
-.panel-entity-nodes.output .panel-entity-node span {
+.panel-entity-nodes.output .panel-entity-node .label {
     left: 1rem;
 }
 
