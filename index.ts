@@ -1,8 +1,10 @@
 namespace Globals {
     export let mainContainer: HTMLElement;
+    export let contentContainer: HTMLElement;
     export let svgContainer: HTMLElement;
-    export let notificationManager: Entities.NotificationManager;
-    export let PanelManager: Entities.PanelManager;
+    export let scroller: Main.Scroller;
+    export let notificationManager: Main.NotificationManager;
+    export let PanelManager: Main.PanelManager;
 }
 
 namespace Easing {
@@ -93,7 +95,57 @@ namespace Cipher {
     }
 }
 
-namespace Entities {
+namespace Main {
+    export class Scroller {
+        elementWrapper: HTMLElement;
+        elementBackground: HTMLElement;
+        isDragging: boolean;
+        scroll: { x: number; y: number };
+        initialMouse: { x: number; y: number };
+        initialScroll: { x: number; y: number };
+
+        constructor(elementWrapper: HTMLElement, elementBackground: HTMLElement) {
+            this.elementWrapper = elementWrapper;
+            this.elementBackground = elementBackground;
+            this.scroll = { x: 0, y: 0 };
+            this.initialMouse = { x: 0, y: 0 };
+            this.initialScroll = { x: 0, y: 0 };
+            this.updateElement();
+
+            this.elementBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+            this.elementBackground.addEventListener("mousemove", (e) => this.onBackgroundMouseMove(e));
+            this.elementBackground.addEventListener("mouseup", (e) => this.onBackgroundMouseUp(e));
+        }
+
+        updateElement() {
+            this.elementWrapper.scrollLeft = this.scroll.x;
+            this.elementWrapper.scrollTop = this.scroll.y;
+        }
+
+        onBackgroundMouseDown(e: MouseEvent) {
+            this.isDragging = true;
+            this.initialMouse.x = e.clientX;
+            this.initialMouse.y = e.clientY;
+            this.initialScroll.x = this.scroll.x;
+            this.initialScroll.y = this.scroll.y;
+            document.body.style.cursor = "grabbing";
+            this.elementBackground.style.cursor = "grabbing";
+        }
+
+        onBackgroundMouseMove(e: MouseEvent) {
+            if (!this.isDragging) return;
+            this.scroll.x = Math.max(0, this.initialScroll.x - (e.clientX - this.initialMouse.x));
+            this.scroll.y = Math.max(0, this.initialScroll.y - (e.clientY - this.initialMouse.y));
+            this.updateElement();
+        }
+
+        onBackgroundMouseUp(e: MouseEvent) {
+            this.isDragging = false;
+            document.body.style.cursor = "default";
+            this.elementBackground.style.cursor = "grab";
+        }
+    }
+
     /** A proxy to a HTML element which can be moved around and removed. */
     export class BaseEntity {
         element: HTMLElement;
@@ -104,7 +156,7 @@ namespace Entities {
             this.element = Util.createHTMLElement(elementString);
             this.events = new Util.EventBus();
             this.position = { x: 0, y: 0 };
-            this.setParent(Globals.mainContainer);
+            this.setParent(Globals.contentContainer);
         }
 
         remove() {
@@ -358,6 +410,7 @@ namespace Entities {
             if (!this.isDragging) return;
             this.isDragging = false;
             document.body.style.cursor = "default";
+            this.elementBar.style.cursor = "grab";
         }
     }
 
@@ -507,8 +560,8 @@ namespace Entities {
         targetPanel: Panel;
         sourceIndex: number;
         targetIndex: number;
-        sourcePos: { x: number; y: number };
-        targetPos: { x: number; y: number };
+        sourceScreenPos: { x: number; y: number };
+        targetScreenPos: { x: number; y: number };
         mouseMoveListener = (e: MouseEvent) => this.onMouseMoved(e);
 
         constructor() {
@@ -531,7 +584,7 @@ namespace Entities {
             if (this.targetPanel) this.establish();
 
             this.recalculateSourcePos();
-            if (!this.targetPos) this.targetPos = this.sourcePos;
+            if (!this.targetScreenPos) this.targetScreenPos = this.sourceScreenPos;
             if (!this.isConnected) document.body.style.cursor = "pointer";
             this.updateElement();
         }
@@ -549,7 +602,7 @@ namespace Entities {
             if (this.sourcePanel) this.establish();
 
             this.recalculateTargetPos();
-            if (!this.sourcePos) this.sourcePos = this.targetPos;
+            if (!this.sourceScreenPos) this.sourceScreenPos = this.targetScreenPos;
             if (!this.isConnected) document.body.style.cursor = "pointer";
             this.updateElement();
         }
@@ -655,35 +708,39 @@ namespace Entities {
         recalculateSourcePos() {
             if (!this.sourcePanel) return;
             const sourceRect = this.sourcePanel.nodes.output[this.sourceIndex].getIndicatorRect();
-            this.sourcePos = {
-                x: sourceRect.left + sourceRect.width / 2,
-                y: sourceRect.top + sourceRect.height / 2,
+            this.sourceScreenPos = {
+                x: sourceRect.left + sourceRect.width / 2 + Globals.scroller.scroll.x,
+                y: sourceRect.top + sourceRect.height / 2 + Globals.scroller.scroll.y,
             };
         }
 
         recalculateTargetPos() {
             if (!this.targetPanel) return;
             const targetRect = this.targetPanel.nodes.input[this.targetIndex].getIndicatorRect();
-            this.targetPos = {
-                x: targetRect.left + targetRect.width / 2,
-                y: targetRect.top + targetRect.height / 2,
+            this.targetScreenPos = {
+                x: targetRect.left + targetRect.width / 2 + Globals.scroller.scroll.x,
+                y: targetRect.top + targetRect.height / 2 + Globals.scroller.scroll.y,
             };
         }
 
         updateElement() {
-            const dx = this.targetPos.x - this.sourcePos.x;
-            const dy = this.targetPos.y - this.sourcePos.y;
+            const dx = this.targetScreenPos.x - this.sourceScreenPos.x;
+            const dy = this.targetScreenPos.y - this.sourceScreenPos.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             // Interpolate from 0 -> 60 with distance 40 -> 100
             const controlOffsetT = Math.min(1, Math.max(0, (dist - 30) / (120 - 30)));
             const controlOffset = Easing.easeOutQuad(controlOffsetT) * 60;
 
-            const c1X = this.sourcePos.x + controlOffset;
-            const c1Y = this.sourcePos.y;
-            const c2X = this.targetPos.x - controlOffset;
-            const c2Y = this.targetPos.y;
-            const d = `M ${this.sourcePos.x} ${this.sourcePos.y} C ${c1X} ${c1Y}, ${c2X} ${c2Y}, ${this.targetPos.x} ${this.targetPos.y}`;
+            const p1X = this.sourceScreenPos.x;
+            const p1Y = this.sourceScreenPos.y;
+            const p2X = this.targetScreenPos.x;
+            const p2Y = this.targetScreenPos.y;
+            const c1X = p1X + controlOffset;
+            const c1Y = p1Y;
+            const c2X = p2X - controlOffset;
+            const c2Y = p2Y;
+            const d = `M ${p1X} ${p1Y} C ${c1X} ${c1Y}, ${c2X} ${c2Y}, ${p2X} ${p2Y}`;
             this.element.setAttribute("d", d);
             this.element.setAttribute("stroke", "#d7d7d7");
             this.element.setAttribute("stroke-width", "3");
@@ -693,7 +750,7 @@ namespace Entities {
         onSourceNodesUpdated() {
             // Check source index is still within range
             if (this.sourceIndex >= this.sourcePanel.nodes.output.length) {
-                Globals.notificationManager.notify("Source node removed", this.sourcePos, "warning");
+                Globals.notificationManager.notify("Source node removed", this.sourceScreenPos, "warning");
                 this.remove();
                 return;
             }
@@ -705,7 +762,7 @@ namespace Entities {
         onTargetNodesUpdated() {
             // Check target index is still within range
             if (this.targetIndex >= this.targetPanel.nodes.input.length) {
-                Globals.notificationManager.notify("Target node removed", this.targetPos, "warning");
+                Globals.notificationManager.notify("Target node removed", this.targetScreenPos, "warning");
                 this.remove();
                 return;
             }
@@ -719,9 +776,11 @@ namespace Entities {
             if (this.isConnected) document.removeEventListener("mousemove", this.mouseMoveListener);
 
             const mousePos = { x: e.clientX, y: e.clientY };
-            if (!this.sourcePanel) this.sourcePos = mousePos;
+            mousePos.x += Globals.scroller.scroll.x;
+            mousePos.y += Globals.scroller.scroll.y;
+            if (!this.sourcePanel) this.sourceScreenPos = mousePos;
             else this.recalculateSourcePos();
-            if (!this.targetPanel) this.targetPos = mousePos;
+            if (!this.targetPanel) this.targetScreenPos = mousePos;
             else this.recalculateTargetPos();
             this.updateElement();
         }
@@ -920,17 +979,16 @@ namespace Entities {
 
 (function () {
     Globals.mainContainer = document.querySelector(".main-container");
+    Globals.contentContainer = document.querySelector(".content-container");
     Globals.svgContainer = document.querySelector(".svg-container");
-    Globals.notificationManager = new Entities.NotificationManager(document.querySelector(".notification-container"));
-    Globals.PanelManager = new Entities.PanelManager();
+    Globals.scroller = new Main.Scroller(Globals.mainContainer, Globals.contentContainer.querySelector(".background"));
+    Globals.notificationManager = new Main.NotificationManager(document.querySelector(".notification-container"));
+    Globals.PanelManager = new Main.PanelManager();
 
-    const p1 = new Entities.Panel(
-        new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]),
-        "Text"
-    );
+    const p1 = new Main.Panel(new Main.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
 
-    const p2 = new Entities.Panel(
-        new Entities.HardcodedEntity([
+    const p2 = new Main.Panel(
+        new Main.HardcodedEntity([
             Cipher.Message.parseFromString("0123232433422323"),
             Cipher.Message.parseFromString("45645632234456454"),
             Cipher.Message.parseFromString("13231212323232"),
@@ -938,15 +996,15 @@ namespace Entities {
         "Text"
     );
 
-    const p3 = new Entities.Panel(new Entities.PreviewMessagesEntity(), "Preview");
+    const p3 = new Main.Panel(new Main.PreviewMessagesEntity(), "Preview");
 
-    const p6 = new Entities.Panel(new Entities.PreviewMessagesEntity(), "Preview");
+    const p6 = new Main.Panel(new Main.PreviewMessagesEntity(), "Preview");
 
-    const p4 = new Entities.Panel(new Entities.SplitMessagesEntity(), "Split");
+    const p4 = new Main.Panel(new Main.SplitMessagesEntity(), "Split");
 
-    const p5 = new Entities.Panel(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
+    const p5 = new Main.Panel(new Main.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
 
-    const p7 = new Entities.Panel(new Entities.BlockEntity(), "Block");
+    const p7 = new Main.Panel(new Main.BlockEntity(), "Block");
 
     p1.setPosition(70, 100);
     p2.setPosition(40, 350);

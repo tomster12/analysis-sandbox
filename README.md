@@ -15,5 +15,4 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
-- Click and grab to scroll around world instead of rudimentary scrolling
 - Node add menu for available panel types
