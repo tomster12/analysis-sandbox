@@ -84,7 +84,7 @@
     height: 1rem;
     border-radius: 1rem;
     display: flex;
-    box-shadow: 0 0.2rem 0.6rem -0.05rem #1b1b1b;
+    /* box-shadow: 0 0.2rem 0.6rem -0.05rem #1b1b1b; */
     opacity: 1;
     transition: opacity 0.5s;
 }
@@ -279,12 +279,18 @@
     background-color: rgb(214, 214, 214);
     box-shadow: 0 0 0.3rem 0 #151515d6;
     transition: background-color 0.1s;
+    transition: box-shadow 0.1s;
 }
 
 .panel-entity-node:hover .indicator,
 .panel-entity-node.connecting .indicator {
     background-color: #f7f7f7;
     box-shadow: 0 0 0.7rem 0 #606060d6;
+}
+
+.panel-entity-node.invalid .indicator {
+    background-color: #ff5b5b;
+    box-shadow: 0 0 0.7rem 0 #6d4242d6;
 }
 
 .panel-entity-nodes.input .panel-entity-node .indicator {
@@ -314,6 +320,11 @@
 .panel-entity-node.connecting .label {
     background-color: #7c7c7ca6;
     color: #e5e5e5;
+}
+
+.panel-entity-node.invalid .label {
+    background-color: #a34f4fa6;
+    color: #ea9b9b;
 }
 
 .panel-entity-nodes.input .panel-entity-node .label {

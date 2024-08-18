@@ -2,7 +2,7 @@ namespace Globals {
     export let mainContainer: HTMLElement;
     export let svgContainer: HTMLElement;
     export let notificationManager: Entities.NotificationManager;
-    export let panelEntityManager: Entities.PanelEntityManager;
+    export let PanelManager: Entities.PanelManager;
 }
 
 namespace Easing {
@@ -158,18 +158,28 @@ namespace Entities {
         }
     }
 
-    /** Content which can be placed inside a PanelEntity. */
-    export interface IPanelEntityContent extends BaseEntity {
-        setPanel(panel: PanelEntity): void;
-        setInput(index: number, value: Cipher.Message[]): void;
-        getOutput(index: number): Cipher.Message[];
+    export type ValueType = Cipher.Message[];
+
+    export type ValueTypeString = "Message" | "Message[]" | "None";
+
+    export function isCompatibleValueType(sourceType: ValueTypeString, targetType: ValueTypeString): boolean {
+        if (sourceType == targetType) return true;
+        if (sourceType == "Message" && targetType == "Message[]") return true;
+        return false;
     }
 
-    export type PanelEntityNodeType = "input" | "output";
+    export type PanelNodeType = "input" | "output";
 
-    export type PanelEntityValue = Cipher.Message[];
+    /** Content which can be placed inside a Panel. */
+    export interface IPanelContent extends BaseEntity {
+        setPanel(panel: Panel): void;
+        setInput(index: number, value: Cipher.Message[]): void;
+        getOutput(index: number): Cipher.Message[];
+        getNodeValueType(type: PanelNodeType, index: number): ValueTypeString;
+    }
 
-    export class PanelEntityNode {
+    /** Utility class for panel. */
+    export class PanelNode {
         element: HTMLElement;
         elementIndicator: HTMLElement;
         elementLabel: HTMLElement;
@@ -188,13 +198,17 @@ namespace Entities {
             this.element.classList.toggle("connecting", connecting);
         }
 
+        setInvalid(invalid: boolean) {
+            this.element.classList.toggle("invalid", invalid);
+        }
+
         getIndicatorRect(): DOMRect {
             return this.elementIndicator.getBoundingClientRect();
         }
     }
 
     /** Panel which can contain content and have input / output nodes. */
-    export class PanelEntity extends BaseEntity {
+    export class Panel extends BaseEntity {
         elementBar: HTMLElement;
         elementBarTitle: HTMLElement;
         elementBarClose: HTMLElement;
@@ -202,15 +216,15 @@ namespace Entities {
         elementInputNodes: HTMLElement;
         elementOutputNodes: HTMLElement;
 
-        content: IPanelEntityContent;
-        nodes: { input: PanelEntityNode[]; output: PanelEntityNode[] };
+        content: IPanelContent;
+        nodes: { input: PanelNode[]; output: PanelNode[] };
         isDragging: boolean;
         initialMouseX: number;
         initialMouseY: number;
         initialOffsetX: number;
         initialOffsetY: number;
 
-        constructor(content: IPanelEntityContent, title: string) {
+        constructor(content: IPanelContent, title: string) {
             super(`
                 <div class="panel-entity">
                     <div class="panel-entity-bar">
@@ -246,10 +260,10 @@ namespace Entities {
             this.elementContent.appendChild(this.content.getHTMLElement());
             this.content.setPanel(this);
 
-            Globals.panelEntityManager.registerPanel(this);
+            Globals.PanelManager.registerPanel(this);
         }
 
-        createNode(type: PanelEntityNodeType, index: number): PanelEntityNode {
+        createNode(type: PanelNodeType, index: number): PanelNode {
             const element = Util.createHTMLElement(`
                 <div class="panel-entity-node">
                     <div class="hover-box"></div>
@@ -275,7 +289,7 @@ namespace Entities {
                 this.events.emit("nodeClicked", type, index);
             });
 
-            return new PanelEntityNode(element, elementIndicator, elementLabel);
+            return new PanelNode(element, elementIndicator, elementLabel);
         }
 
         reinitializeNodes(inputCount: number, outputCount: number) {
@@ -302,16 +316,16 @@ namespace Entities {
             this.events.emit("nodesUpdated");
         }
 
-        setInput(index: number, value: PanelEntityValue) {
+        setInput(index: number, value: ValueType) {
             this.content.setInput(index, value);
         }
 
-        getOutput(index: number): PanelEntityValue {
+        getOutput(index: number): ValueType {
             return this.content.getOutput(index);
         }
 
-        getNodeType(type: PanelEntityNodeType, index: number) {
-            return "Message[]";
+        getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
+            return this.content.getNodeValueType(type, index);
         }
 
         onBarMouseDown(e: MouseEvent) {
@@ -342,11 +356,11 @@ namespace Entities {
         }
     }
 
-    /** Global manager referenced by PanelEntitys to manage connections between them. */
-    export class PanelEntityManager {
-        panels: PanelEntity[];
-        connections: PanelEntityConnection[];
-        currentConnection: PanelEntityConnection | null;
+    /** Global manager referenced by Panels to manage connections between them. */
+    export class PanelManager {
+        panels: Panel[];
+        connections: PanelConnection[];
+        currentConnection: PanelConnection | null;
 
         constructor() {
             this.panels = [];
@@ -355,37 +369,37 @@ namespace Entities {
             Globals.mainContainer.addEventListener("mousedown", (e) => this.onMainMouseDown(e));
         }
 
-        registerPanel(panel: PanelEntity) {
+        registerPanel(panel: Panel) {
             this.panels.push(panel);
 
-            panel.events.listen(this, "remove", (panel: PanelEntity) => this.onPanelRemoved(panel));
+            panel.events.listen(this, "remove", (panel: Panel) => this.onPanelRemoved(panel));
 
-            panel.events.listen(this, "nodeHovered", (type: PanelEntityNodeType, index: number) => {
+            panel.events.listen(this, "nodeHovered", (type: PanelNodeType, index: number) => {
                 this.onHoverNode(panel, type, index);
             });
 
-            panel.events.listen(this, "nodeUnhovered", (type: PanelEntityNodeType, index: number) => {
+            panel.events.listen(this, "nodeUnhovered", (type: PanelNodeType, index: number) => {
                 this.onUnhoverNode(panel, type, index);
             });
 
-            panel.events.listen(this, "nodeClicked", (type: PanelEntityNodeType, index: number) => {
+            panel.events.listen(this, "nodeClicked", (type: PanelNodeType, index: number) => {
                 if (type === "input") this.onClickTargetNode(panel, index);
                 else this.onClickSourceNode(panel, index);
             });
         }
 
-        connect(sourcePanel: PanelEntity, sourceindex: number, targetPanel: PanelEntity, targetindex: number) {
-            const connection = new PanelEntityConnection();
+        connect(sourcePanel: Panel, sourceindex: number, targetPanel: Panel, targetindex: number) {
+            const connection = new PanelConnection();
             connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
             this.connections.push(connection);
         }
 
-        onClickSourceNode(panel: PanelEntity, index: number) {
+        onClickSourceNode(panel: Panel, index: number) {
             if (this.currentConnection) {
-                // Dont allow single panel loops or source -> source connections
-                if (this.currentConnection.targetPanel === panel || this.currentConnection.sourcePanel != null) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
+                // Dont allow if connection cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "output", index)) {
+                    const position = panel.nodes.output[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
                     return;
                 }
 
@@ -411,17 +425,17 @@ namespace Entities {
                 }
             } else {
                 // Start a new connection if not holding one
-                this.currentConnection = new PanelEntityConnection();
+                this.currentConnection = new PanelConnection();
                 this.currentConnection.setSource(panel, index);
             }
         }
 
-        onClickTargetNode(panel: PanelEntity, index: number) {
+        onClickTargetNode(panel: Panel, index: number) {
             if (this.currentConnection) {
-                // Dont allow single panel loops or target -> target connections
-                if (this.currentConnection.sourcePanel === panel || this.currentConnection.targetPanel != null) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
+                // Dont allow if cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "input", index)) {
+                    const position = panel.nodes.input[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
                     return;
                 }
 
@@ -445,20 +459,28 @@ namespace Entities {
                 }
 
                 // Otherwise start a new connection with the target
-                this.currentConnection = new PanelEntityConnection();
+                this.currentConnection = new PanelConnection();
                 this.currentConnection.setTarget(panel, index);
             }
         }
 
-        onHoverNode(pane: PanelEntity, type: PanelEntityNodeType, index: number) {}
+        onHoverNode(panel: Panel, type: PanelNodeType, index: number) {
+            if (this.currentConnection != null && !this.currentConnection.canConnectWith(panel, type, index)) {
+                if (type == "input") panel.nodes.input[index].setInvalid(true);
+                else panel.nodes.output[index].setInvalid(true);
+            }
+        }
 
-        onUnhoverNode(pane: PanelEntity, type: PanelEntityNodeType, index: number) {}
+        onUnhoverNode(panel: Panel, type: PanelNodeType, index: number) {
+            if (type == "input") panel.nodes.input[index].setInvalid(false);
+            else panel.nodes.output[index].setInvalid(false);
+        }
 
-        onConnectionRemoved(connection: PanelEntityConnection) {
+        onConnectionRemoved(connection: PanelConnection) {
             this.connections = this.connections.filter((c) => c !== connection);
         }
 
-        onPanelRemoved(panel: PanelEntity) {
+        onPanelRemoved(panel: Panel) {
             panel.events.unlisten(this);
             this.panels = this.panels.filter((p) => p !== panel);
         }
@@ -473,11 +495,11 @@ namespace Entities {
     }
 
     /** Visual and representation of a connection between two panels. */
-    export class PanelEntityConnection {
+    export class PanelConnection {
         element: SVGPathElement;
         isConnected: boolean;
-        sourcePanel: PanelEntity;
-        targetPanel: PanelEntity;
+        sourcePanel: Panel;
+        targetPanel: Panel;
         sourceIndex: number;
         targetIndex: number;
         sourcePos: { x: number; y: number };
@@ -491,7 +513,7 @@ namespace Entities {
             this.isConnected = false;
         }
 
-        setSource(panel: PanelEntity, index: number) {
+        setSource(panel: Panel, index: number) {
             Util.assert(!this.isConnected, "Connection is already connected");
 
             this.sourcePanel = panel;
@@ -509,7 +531,7 @@ namespace Entities {
             this.updateElement();
         }
 
-        setTarget(panel: PanelEntity, index: number) {
+        setTarget(panel: Panel, index: number) {
             Util.assert(!this.isConnected, "Connection is already connected");
 
             this.targetPanel = panel;
@@ -527,16 +549,23 @@ namespace Entities {
             this.updateElement();
         }
 
-        canConnectWith(panel: PanelEntity, type: PanelEntityNodeType, index: number): boolean {
+        canConnectWith(panel: Panel, type: PanelNodeType, index: number): boolean {
+            // Dont allow if any of the following:
+            // - Same panel -> panel
+            // - Input -> input OR output -> output
+            // - Incompatible types (directional)
             if (this.isConnected) return false;
-            if (this.sourcePanel != null && type == "output") return null;
-            if (this.targetPanel != null && type == "input") return null;
-            if (this.sourcePanel != null) return this.sourcePanel.getNodeType("output", this.sourceIndex) == panel.getNodeType(type, index);
-            if (this.targetPanel != null) return this.targetPanel.getNodeType("input", this.targetIndex) == panel.getNodeType(type, index);
+            if (panel == this.sourcePanel || panel == this.targetPanel) return false;
+            if (this.sourcePanel != null && type == "output") return false;
+            if (this.targetPanel != null && type == "input") return false;
+            if (this.sourcePanel != null)
+                return isCompatibleValueType(this.sourcePanel.getNodeValueType("output", this.sourceIndex), panel.getNodeValueType(type, index));
+            if (this.targetPanel != null)
+                return isCompatibleValueType(panel.getNodeValueType(type, index), this.targetPanel.getNodeValueType("input", this.targetIndex));
             return false;
         }
 
-        set(sourcePanel: PanelEntity, sourceindex: number, targetPanel: PanelEntity, targetindex: number) {
+        set(sourcePanel: Panel, sourceindex: number, targetPanel: Panel, targetindex: number) {
             Util.assert(!this.isConnected, "Connection is already connected");
 
             this.sourcePanel = sourcePanel;
@@ -563,7 +592,7 @@ namespace Entities {
             this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(false);
             this.targetPanel.nodes.input[this.targetIndex].setConnecting(false);
 
-            this.sourcePanel.events.listen(this, "outputUpdated", (index: number, value: PanelEntityValue) => {
+            this.sourcePanel.events.listen(this, "outputUpdated", (index: number, value: ValueType) => {
                 if (index === this.sourceIndex) this.targetPanel.setInput(this.targetIndex, value);
             });
 
@@ -587,7 +616,7 @@ namespace Entities {
                 }
             }
             this.element.remove();
-            Globals.panelEntityManager.onConnectionRemoved(this);
+            Globals.PanelManager.onConnectionRemoved(this);
         }
 
         unsetSource() {
@@ -689,9 +718,9 @@ namespace Entities {
         }
     }
 
-    /** PanelEntity content, displays messages. */
-    export class HardcodedEntity extends BaseEntity implements IPanelEntityContent {
-        panel: PanelEntity;
+    /** Panel content, displays messages. */
+    export class HardcodedEntity extends BaseEntity implements IPanelContent {
+        panel: Panel;
         messages: Cipher.Message[];
 
         constructor(messages: Cipher.Message[]) {
@@ -704,40 +733,44 @@ namespace Entities {
             });
         }
 
-        setPanel(panel: PanelEntity) {
+        setPanel(panel: Panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(0, 1);
-            this.panel.nodes.output[0].setLabel("Message[]");
+            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
         }
 
-        setInput(_index: number, _value: PanelEntityValue) {
+        setInput(_index: number, _value: ValueType) {
             Util.assert(false, "TextEntity does not have any inputs");
         }
 
         getOutput(index: number): Cipher.Message[] {
             Util.assert(index == 0, "TextEntity only has one output");
-
             return this.messages;
+        }
+
+        getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
+            if (type == "output" && index == 0) return "Message[]";
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
         }
     }
 
-    /** PanelEntity content, previews messages. */
-    export class PreviewMessagesEntity extends BaseEntity implements IPanelEntityContent {
-        panel: PanelEntity;
+    /** Panel content, previews messages. */
+    export class PreviewMessagesEntity extends BaseEntity implements IPanelContent {
+        panel: Panel;
         messages: Cipher.Message[];
 
         constructor() {
             super(`<div class="preview-messages-entity empty"></div>`);
         }
 
-        setPanel(panel: PanelEntity) {
+        setPanel(panel: Panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(1, 1);
-            this.panel.nodes.input[0].setLabel("Message[]");
-            this.panel.nodes.output[0].setLabel("Message[]");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
+            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
         }
 
-        setInput(index: number, value: PanelEntityValue) {
+        setInput(index: number, value: ValueType) {
             Util.assert(index == 0, "TextEntity only has one input");
 
             // Exit early with notification if the value is invalid
@@ -769,12 +802,19 @@ namespace Entities {
 
             return this.messages;
         }
+
+        getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
+            if (type == "input" && index == 0) return "Message[]";
+            if (type == "output" && index == 0) return "Message[]";
+
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
+        }
     }
 
-    /** PanelEntity content, splits messages into lines. */
-    export class SplitMessagesEntity extends BaseEntity implements IPanelEntityContent {
+    /** Panel content, splits messages into lines. */
+    export class SplitMessagesEntity extends BaseEntity implements IPanelContent {
         elementCount: HTMLElement;
-        panel: PanelEntity;
+        panel: Panel;
         messages: Cipher.Message[];
 
         constructor() {
@@ -782,13 +822,13 @@ namespace Entities {
             this.elementCount = this.element.querySelector("p");
         }
 
-        setPanel(panel: PanelEntity) {
+        setPanel(panel: Panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(1, 0);
-            this.panel.nodes.input[0].setLabel("Message[]");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
         }
 
-        setInput(index: number, value: PanelEntityValue) {
+        setInput(index: number, value: ValueType) {
             Util.assert(index == 0, "SplitTextEntity only has one input");
 
             // Exit early with notification if the value is invalid
@@ -807,8 +847,8 @@ namespace Entities {
 
             // Udate panel node counts and labels
             this.panel.reinitializeNodes(1, this.messages.length);
-            this.panel.nodes.input[0].setLabel("Message[]");
-            for (let i = 0; i < this.messages.length; i++) this.panel.nodes.output[i].setLabel("Message[]");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
+            for (let i = 0; i < this.messages.length; i++) this.panel.nodes.output[i].setLabel(this.getNodeValueType("output", 0));
 
             // Trigger events
             this.panel.events.emit("nodesUpdated");
@@ -820,37 +860,39 @@ namespace Entities {
 
             return [this.messages[index]];
         }
+
+        getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
+            if (type == "input" && index == 0) return "Message[]";
+            if (type == "output" && index >= 0 && index < this.messages.length) return "Message[]";
+
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on SplitMessagesEntity`);
+        }
     }
 
-    export class BlockEntity extends BaseEntity implements IPanelEntityContent {
-        panel: PanelEntity;
+    export class BlockEntity extends BaseEntity implements IPanelContent {
+        panel: Panel;
 
         constructor() {
             super(`<div class="block-entity"></div>`);
         }
 
-        setPanel(panel: PanelEntity) {
+        setPanel(panel: Panel) {
             this.panel = panel;
             panel.reinitializeNodes(1, 0);
-            this.panel.nodes.input[0].setLabel("None");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
         }
 
-        setInput(index: number, value: PanelEntityValue) {
-            Util.assert(index == 0, "BlockEntity only has one input");
-
-            const position = this.panel.nodes.input[index].getIndicatorRect();
-            Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
-
-            // Globals.notificationManager.notify(
-            //     "BlockEntity does not accept any inputs",
-            //     { x: this.panel.position.x - 40, y: this.panel.position.y - 40 },
-            //     "error"
-            // );
+        setInput(index: number, value: ValueType) {
+            Util.assert(false, "BlockEntity should never receive input");
         }
 
         getOutput(index: number): Cipher.Message[] {
             Util.assert(false, "BlockEntity does not have any outputs");
             return [];
+        }
+
+        getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
+            return "None";
         }
     }
 }
@@ -859,14 +901,14 @@ namespace Entities {
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.svgContainer = document.querySelector(".svg-container");
     Globals.notificationManager = new Entities.NotificationManager(document.querySelector(".notification-container"));
-    Globals.panelEntityManager = new Entities.PanelEntityManager();
+    Globals.PanelManager = new Entities.PanelManager();
 
-    const p1 = new Entities.PanelEntity(
+    const p1 = new Entities.Panel(
         new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]),
         "Text"
     );
 
-    const p2 = new Entities.PanelEntity(
+    const p2 = new Entities.Panel(
         new Entities.HardcodedEntity([
             Cipher.Message.parseFromString("0123232433422323"),
             Cipher.Message.parseFromString("45645632234456454"),
@@ -875,15 +917,15 @@ namespace Entities {
         "Text"
     );
 
-    const p3 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
+    const p3 = new Entities.Panel(new Entities.PreviewMessagesEntity(), "Preview");
 
-    const p6 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
+    const p6 = new Entities.Panel(new Entities.PreviewMessagesEntity(), "Preview");
 
-    const p4 = new Entities.PanelEntity(new Entities.SplitMessagesEntity(), "Split");
+    const p4 = new Entities.Panel(new Entities.SplitMessagesEntity(), "Split");
 
-    const p5 = new Entities.PanelEntity(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
+    const p5 = new Entities.Panel(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
 
-    const p7 = new Entities.PanelEntity(new Entities.BlockEntity(), "Block");
+    const p7 = new Entities.Panel(new Entities.BlockEntity(), "Block");
 
     p1.setPosition(70, 100);
     p2.setPosition(40, 350);
@@ -893,5 +935,5 @@ namespace Entities {
     p4.setPosition(580, 450);
     p7.setPosition(550, 600);
 
-    Globals.panelEntityManager.connect(p1, 0, p3, 0);
+    Globals.PanelManager.connect(p1, 0, p3, 0);
 })();

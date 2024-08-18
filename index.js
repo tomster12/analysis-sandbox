@@ -144,7 +144,16 @@ var Entities;
         }
     }
     Entities.NotificationManager = NotificationManager;
-    class PanelEntityNode {
+    function isCompatibleValueType(sourceType, targetType) {
+        if (sourceType == targetType)
+            return true;
+        if (sourceType == "Message" && targetType == "Message[]")
+            return true;
+        return false;
+    }
+    Entities.isCompatibleValueType = isCompatibleValueType;
+    /** Utility class for panel. */
+    class PanelNode {
         element;
         elementIndicator;
         elementLabel;
@@ -159,13 +168,16 @@ var Entities;
         setConnecting(connecting) {
             this.element.classList.toggle("connecting", connecting);
         }
+        setInvalid(invalid) {
+            this.element.classList.toggle("invalid", invalid);
+        }
         getIndicatorRect() {
             return this.elementIndicator.getBoundingClientRect();
         }
     }
-    Entities.PanelEntityNode = PanelEntityNode;
+    Entities.PanelNode = PanelNode;
     /** Panel which can contain content and have input / output nodes. */
-    class PanelEntity extends BaseEntity {
+    class Panel extends BaseEntity {
         elementBar;
         elementBarTitle;
         elementBarClose;
@@ -211,7 +223,7 @@ var Entities;
             this.content = content;
             this.elementContent.appendChild(this.content.getHTMLElement());
             this.content.setPanel(this);
-            Globals.panelEntityManager.registerPanel(this);
+            Globals.PanelManager.registerPanel(this);
         }
         createNode(type, index) {
             const element = Util.createHTMLElement(`
@@ -234,7 +246,7 @@ var Entities;
                 e.stopPropagation();
                 this.events.emit("nodeClicked", type, index);
             });
-            return new PanelEntityNode(element, elementIndicator, elementLabel);
+            return new PanelNode(element, elementIndicator, elementLabel);
         }
         reinitializeNodes(inputCount, outputCount) {
             if (inputCount != this.nodes.input.length) {
@@ -263,8 +275,8 @@ var Entities;
         getOutput(index) {
             return this.content.getOutput(index);
         }
-        getNodeType(type, index) {
-            return "Message[]";
+        getNodeValueType(type, index) {
+            return this.content.getNodeValueType(type, index);
         }
         onBarMouseDown(e) {
             this.isDragging = true;
@@ -292,9 +304,9 @@ var Entities;
             document.body.style.cursor = "default";
         }
     }
-    Entities.PanelEntity = PanelEntity;
-    /** Global manager referenced by PanelEntitys to manage connections between them. */
-    class PanelEntityManager {
+    Entities.Panel = Panel;
+    /** Global manager referenced by Panels to manage connections between them. */
+    class PanelManager {
         panels;
         connections;
         currentConnection;
@@ -321,16 +333,16 @@ var Entities;
             });
         }
         connect(sourcePanel, sourceindex, targetPanel, targetindex) {
-            const connection = new PanelEntityConnection();
+            const connection = new PanelConnection();
             connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
             this.connections.push(connection);
         }
         onClickSourceNode(panel, index) {
             if (this.currentConnection) {
-                // Dont allow single panel loops or source -> source connections
-                if (this.currentConnection.targetPanel === panel || this.currentConnection.sourcePanel != null) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
+                // Dont allow if connection cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "output", index)) {
+                    const position = panel.nodes.output[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
                     return;
                 }
                 // Dont allow if connection already exists
@@ -352,16 +364,16 @@ var Entities;
             }
             else {
                 // Start a new connection if not holding one
-                this.currentConnection = new PanelEntityConnection();
+                this.currentConnection = new PanelConnection();
                 this.currentConnection.setSource(panel, index);
             }
         }
         onClickTargetNode(panel, index) {
             if (this.currentConnection) {
-                // Dont allow single panel loops or target -> target connections
-                if (this.currentConnection.sourcePanel === panel || this.currentConnection.targetPanel != null) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
+                // Dont allow if cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "input", index)) {
+                    const position = panel.nodes.input[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
                     return;
                 }
                 // Delete any connections with same target
@@ -384,12 +396,24 @@ var Entities;
                     return;
                 }
                 // Otherwise start a new connection with the target
-                this.currentConnection = new PanelEntityConnection();
+                this.currentConnection = new PanelConnection();
                 this.currentConnection.setTarget(panel, index);
             }
         }
-        onHoverNode(pane, type, index) { }
-        onUnhoverNode(pane, type, index) { }
+        onHoverNode(panel, type, index) {
+            if (this.currentConnection != null && !this.currentConnection.canConnectWith(panel, type, index)) {
+                if (type == "input")
+                    panel.nodes.input[index].setInvalid(true);
+                else
+                    panel.nodes.output[index].setInvalid(true);
+            }
+        }
+        onUnhoverNode(panel, type, index) {
+            if (type == "input")
+                panel.nodes.input[index].setInvalid(false);
+            else
+                panel.nodes.output[index].setInvalid(false);
+        }
         onConnectionRemoved(connection) {
             this.connections = this.connections.filter((c) => c !== connection);
         }
@@ -405,9 +429,9 @@ var Entities;
             }
         }
     }
-    Entities.PanelEntityManager = PanelEntityManager;
+    Entities.PanelManager = PanelManager;
     /** Visual and representation of a connection between two panels. */
-    class PanelEntityConnection {
+    class PanelConnection {
         element;
         isConnected;
         sourcePanel;
@@ -458,16 +482,22 @@ var Entities;
             this.updateElement();
         }
         canConnectWith(panel, type, index) {
+            // Dont allow if any of the following:
+            // - Same panel -> panel
+            // - Input -> input OR output -> output
+            // - Incompatible types (directional)
             if (this.isConnected)
                 return false;
+            if (panel == this.sourcePanel || panel == this.targetPanel)
+                return false;
             if (this.sourcePanel != null && type == "output")
-                return null;
+                return false;
             if (this.targetPanel != null && type == "input")
-                return null;
+                return false;
             if (this.sourcePanel != null)
-                return this.sourcePanel.getNodeType("output", this.sourceIndex) == panel.getNodeType(type, index);
+                return isCompatibleValueType(this.sourcePanel.getNodeValueType("output", this.sourceIndex), panel.getNodeValueType(type, index));
             if (this.targetPanel != null)
-                return this.targetPanel.getNodeType("input", this.targetIndex) == panel.getNodeType(type, index);
+                return isCompatibleValueType(panel.getNodeValueType(type, index), this.targetPanel.getNodeValueType("input", this.targetIndex));
             return false;
         }
         set(sourcePanel, sourceindex, targetPanel, targetindex) {
@@ -516,7 +546,7 @@ var Entities;
                 }
             }
             this.element.remove();
-            Globals.panelEntityManager.onConnectionRemoved(this);
+            Globals.PanelManager.onConnectionRemoved(this);
         }
         unsetSource() {
             Util.assert(this.isConnected, "Connection is not connected");
@@ -611,8 +641,8 @@ var Entities;
             this.updateElement();
         }
     }
-    Entities.PanelEntityConnection = PanelEntityConnection;
-    /** PanelEntity content, displays messages. */
+    Entities.PanelConnection = PanelConnection;
+    /** Panel content, displays messages. */
     class HardcodedEntity extends BaseEntity {
         panel;
         messages;
@@ -627,7 +657,7 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(0, 1);
-            this.panel.nodes.output[0].setLabel("Message[]");
+            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
         }
         setInput(_index, _value) {
             Util.assert(false, "TextEntity does not have any inputs");
@@ -636,9 +666,14 @@ var Entities;
             Util.assert(index == 0, "TextEntity only has one output");
             return this.messages;
         }
+        getNodeValueType(type, index) {
+            if (type == "output" && index == 0)
+                return "Message[]";
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
+        }
     }
     Entities.HardcodedEntity = HardcodedEntity;
-    /** PanelEntity content, previews messages. */
+    /** Panel content, previews messages. */
     class PreviewMessagesEntity extends BaseEntity {
         panel;
         messages;
@@ -648,8 +683,8 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(1, 1);
-            this.panel.nodes.input[0].setLabel("Message[]");
-            this.panel.nodes.output[0].setLabel("Message[]");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
+            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
         }
         setInput(index, value) {
             Util.assert(index == 0, "TextEntity only has one input");
@@ -680,9 +715,16 @@ var Entities;
             Util.assert(index == 0, "TextEntity only has one output");
             return this.messages;
         }
+        getNodeValueType(type, index) {
+            if (type == "input" && index == 0)
+                return "Message[]";
+            if (type == "output" && index == 0)
+                return "Message[]";
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
+        }
     }
     Entities.PreviewMessagesEntity = PreviewMessagesEntity;
-    /** PanelEntity content, splits messages into lines. */
+    /** Panel content, splits messages into lines. */
     class SplitMessagesEntity extends BaseEntity {
         elementCount;
         panel;
@@ -694,7 +736,7 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(1, 0);
-            this.panel.nodes.input[0].setLabel("Message[]");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
         }
         setInput(index, value) {
             Util.assert(index == 0, "SplitTextEntity only has one input");
@@ -712,9 +754,9 @@ var Entities;
             this.elementCount.innerText = this.messages.length.toString();
             // Udate panel node counts and labels
             this.panel.reinitializeNodes(1, this.messages.length);
-            this.panel.nodes.input[0].setLabel("Message[]");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
             for (let i = 0; i < this.messages.length; i++)
-                this.panel.nodes.output[i].setLabel("Message[]");
+                this.panel.nodes.output[i].setLabel(this.getNodeValueType("output", 0));
             // Trigger events
             this.panel.events.emit("nodesUpdated");
             for (let i = 0; i < this.messages.length; i++)
@@ -723,6 +765,13 @@ var Entities;
         getOutput(index) {
             Util.assert(index < this.messages.length, "Invalid output index");
             return [this.messages[index]];
+        }
+        getNodeValueType(type, index) {
+            if (type == "input" && index == 0)
+                return "Message[]";
+            if (type == "output" && index >= 0 && index < this.messages.length)
+                return "Message[]";
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on SplitMessagesEntity`);
         }
     }
     Entities.SplitMessagesEntity = SplitMessagesEntity;
@@ -734,21 +783,17 @@ var Entities;
         setPanel(panel) {
             this.panel = panel;
             panel.reinitializeNodes(1, 0);
-            this.panel.nodes.input[0].setLabel("None");
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
         }
         setInput(index, value) {
-            Util.assert(index == 0, "BlockEntity only has one input");
-            const position = this.panel.nodes.input[index].getIndicatorRect();
-            Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
-            // Globals.notificationManager.notify(
-            //     "BlockEntity does not accept any inputs",
-            //     { x: this.panel.position.x - 40, y: this.panel.position.y - 40 },
-            //     "error"
-            // );
+            Util.assert(false, "BlockEntity should never receive input");
         }
         getOutput(index) {
             Util.assert(false, "BlockEntity does not have any outputs");
             return [];
+        }
+        getNodeValueType(type, index) {
+            return "None";
         }
     }
     Entities.BlockEntity = BlockEntity;
@@ -757,18 +802,18 @@ var Entities;
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.svgContainer = document.querySelector(".svg-container");
     Globals.notificationManager = new Entities.NotificationManager(document.querySelector(".notification-container"));
-    Globals.panelEntityManager = new Entities.PanelEntityManager();
-    const p1 = new Entities.PanelEntity(new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
-    const p2 = new Entities.PanelEntity(new Entities.HardcodedEntity([
+    Globals.PanelManager = new Entities.PanelManager();
+    const p1 = new Entities.Panel(new Entities.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
+    const p2 = new Entities.Panel(new Entities.HardcodedEntity([
         Cipher.Message.parseFromString("0123232433422323"),
         Cipher.Message.parseFromString("45645632234456454"),
         Cipher.Message.parseFromString("13231212323232"),
     ]), "Text");
-    const p3 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
-    const p6 = new Entities.PanelEntity(new Entities.PreviewMessagesEntity(), "Preview");
-    const p4 = new Entities.PanelEntity(new Entities.SplitMessagesEntity(), "Split");
-    const p5 = new Entities.PanelEntity(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
-    const p7 = new Entities.PanelEntity(new Entities.BlockEntity(), "Block");
+    const p3 = new Entities.Panel(new Entities.PreviewMessagesEntity(), "Preview");
+    const p6 = new Entities.Panel(new Entities.PreviewMessagesEntity(), "Preview");
+    const p4 = new Entities.Panel(new Entities.SplitMessagesEntity(), "Split");
+    const p5 = new Entities.Panel(new Entities.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
+    const p7 = new Entities.Panel(new Entities.BlockEntity(), "Block");
     p1.setPosition(70, 100);
     p2.setPosition(40, 350);
     p5.setPosition(40, 600);
@@ -776,5 +821,5 @@ var Entities;
     p6.setPosition(550, 300);
     p4.setPosition(580, 450);
     p7.setPosition(550, 600);
-    Globals.panelEntityManager.connect(p1, 0, p3, 0);
+    Globals.PanelManager.connect(p1, 0, p3, 0);
 })();
