@@ -15,6 +15,5 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
-- Panels clear with connection removal
 - Click and grab to scroll around world instead of rudimentary scrolling
 - Node add menu for available panel types

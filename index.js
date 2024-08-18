@@ -278,6 +278,9 @@ var Entities;
         getNodeValueType(type, index) {
             return this.content.getNodeValueType(type, index);
         }
+        onConnectionDisconnect(type, index) {
+            this.content.onConnectionDisconnect(type, index);
+        }
         onBarMouseDown(e) {
             this.isDragging = true;
             this.initialMouseX = e.clientX;
@@ -537,12 +540,14 @@ var Entities;
                 this.sourcePanel.events.unlisten(this);
                 if (this.sourceIndex < this.sourcePanel.nodes.output.length) {
                     this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(false);
+                    this.sourcePanel.onConnectionDisconnect("output", this.sourceIndex);
                 }
             }
             if (this.targetPanel) {
                 this.targetPanel.events.unlisten(this);
                 if (this.targetIndex < this.targetPanel.nodes.input.length) {
                     this.targetPanel.nodes.input[this.targetIndex].setConnecting(false);
+                    this.targetPanel.onConnectionDisconnect("input", this.targetIndex);
                 }
             }
             this.element.remove();
@@ -553,6 +558,7 @@ var Entities;
             this.isConnected = false;
             document.body.style.cursor = "pointer";
             document.addEventListener("mousemove", this.mouseMoveListener);
+            this.targetPanel.onConnectionDisconnect("output", this.sourceIndex);
             this.targetPanel.nodes.input[this.targetIndex].setConnecting(true);
             this.sourcePanel.events.unlisten(this);
             this.sourcePanel = null;
@@ -565,6 +571,7 @@ var Entities;
             document.body.style.cursor = "pointer";
             document.addEventListener("mousemove", this.mouseMoveListener);
             this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(true);
+            this.targetPanel.onConnectionDisconnect("input", this.targetIndex);
             this.targetPanel.events.unlisten(this);
             this.targetPanel = null;
             this.targetIndex = -1;
@@ -671,6 +678,7 @@ var Entities;
                 return "Message[]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
         }
+        onConnectionDisconnect(type, index) { }
     }
     Entities.HardcodedEntity = HardcodedEntity;
     /** Panel content, previews messages. */
@@ -722,6 +730,10 @@ var Entities;
                 return "Message[]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
         }
+        onConnectionDisconnect(type, index) {
+            if (type == "input")
+                this.setInput(0, []);
+        }
     }
     Entities.PreviewMessagesEntity = PreviewMessagesEntity;
     /** Panel content, splits messages into lines. */
@@ -752,7 +764,7 @@ var Entities;
             // Set message and visual
             this.messages = value;
             this.elementCount.innerText = this.messages.length.toString();
-            // Udate panel node counts and labels
+            // Update panel node counts and labels
             this.panel.reinitializeNodes(1, this.messages.length);
             this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
             for (let i = 0; i < this.messages.length; i++)
@@ -772,6 +784,10 @@ var Entities;
             if (type == "output" && index >= 0 && index < this.messages.length)
                 return "Message[]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on SplitMessagesEntity`);
+        }
+        onConnectionDisconnect(type, index) {
+            if (type == "input")
+                this.setInput(0, []);
         }
     }
     Entities.SplitMessagesEntity = SplitMessagesEntity;
@@ -795,6 +811,7 @@ var Entities;
         getNodeValueType(type, index) {
             return "None";
         }
+        onConnectionDisconnect(type, index) { }
     }
     Entities.BlockEntity = BlockEntity;
 })(Entities || (Entities = {}));

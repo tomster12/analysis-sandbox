@@ -176,6 +176,7 @@ namespace Entities {
         setInput(index: number, value: Cipher.Message[]): void;
         getOutput(index: number): Cipher.Message[];
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString;
+        onConnectionDisconnect(type: PanelNodeType, index: number): void;
     }
 
     /** Utility class for panel. */
@@ -326,6 +327,10 @@ namespace Entities {
 
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
             return this.content.getNodeValueType(type, index);
+        }
+
+        onConnectionDisconnect(type: PanelNodeType, index: number) {
+            this.content.onConnectionDisconnect(type, index);
         }
 
         onBarMouseDown(e: MouseEvent) {
@@ -607,12 +612,14 @@ namespace Entities {
                 this.sourcePanel.events.unlisten(this);
                 if (this.sourceIndex < this.sourcePanel.nodes.output.length) {
                     this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(false);
+                    this.sourcePanel.onConnectionDisconnect("output", this.sourceIndex);
                 }
             }
             if (this.targetPanel) {
                 this.targetPanel.events.unlisten(this);
                 if (this.targetIndex < this.targetPanel.nodes.input.length) {
                     this.targetPanel.nodes.input[this.targetIndex].setConnecting(false);
+                    this.targetPanel.onConnectionDisconnect("input", this.targetIndex);
                 }
             }
             this.element.remove();
@@ -624,6 +631,7 @@ namespace Entities {
             this.isConnected = false;
             document.body.style.cursor = "pointer";
             document.addEventListener("mousemove", this.mouseMoveListener);
+            this.targetPanel.onConnectionDisconnect("output", this.sourceIndex);
             this.targetPanel.nodes.input[this.targetIndex].setConnecting(true);
             this.sourcePanel.events.unlisten(this);
             this.sourcePanel = null;
@@ -637,6 +645,7 @@ namespace Entities {
             document.body.style.cursor = "pointer";
             document.addEventListener("mousemove", this.mouseMoveListener);
             this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(true);
+            this.targetPanel.onConnectionDisconnect("input", this.targetIndex);
             this.targetPanel.events.unlisten(this);
             this.targetPanel = null;
             this.targetIndex = -1;
@@ -752,6 +761,8 @@ namespace Entities {
             if (type == "output" && index == 0) return "Message[]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
         }
+
+        onConnectionDisconnect(type: PanelNodeType, index: number) {}
     }
 
     /** Panel content, previews messages. */
@@ -809,6 +820,10 @@ namespace Entities {
 
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
         }
+
+        onConnectionDisconnect(type: PanelNodeType, index: number) {
+            if (type == "input") this.setInput(0, []);
+        }
     }
 
     /** Panel content, splits messages into lines. */
@@ -845,7 +860,7 @@ namespace Entities {
             this.messages = value;
             this.elementCount.innerText = this.messages.length.toString();
 
-            // Udate panel node counts and labels
+            // Update panel node counts and labels
             this.panel.reinitializeNodes(1, this.messages.length);
             this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
             for (let i = 0; i < this.messages.length; i++) this.panel.nodes.output[i].setLabel(this.getNodeValueType("output", 0));
@@ -866,6 +881,10 @@ namespace Entities {
             if (type == "output" && index >= 0 && index < this.messages.length) return "Message[]";
 
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on SplitMessagesEntity`);
+        }
+
+        onConnectionDisconnect(type: PanelNodeType, index: number) {
+            if (type == "input") this.setInput(0, []);
         }
     }
 
@@ -894,6 +913,8 @@ namespace Entities {
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
             return "None";
         }
+
+        onConnectionDisconnect(type: PanelNodeType, index: number) {}
     }
 }
 
