@@ -15,7 +15,8 @@ https://tomster12.github.io/web-analysis-2/
 
 ## To-Do
 
+- System for background click exclusivity
 - Node add menu for available panel types
 - UI for showing when dragging
 - Button to open add menu
-- User input panel
+- Implement user input panel

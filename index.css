@@ -348,6 +348,20 @@
 
 /* ----------------------- */
 
+.panel-creator {
+    position: relative;
+    display: none;
+    background-color: red;
+    width: 100px;
+    height: 100px;
+}
+
+.panel-creator.visible {
+    display: block;
+}
+
+/* ----------------------- */
+
 .message {
     user-select: text;
     display: flex;

@@ -90,6 +90,12 @@ var Cipher;
 })(Cipher || (Cipher = {}));
 var Main;
 (function (Main) {
+    function isCompatibleValueType(sourceType, targetType) {
+        if (sourceType == targetType)
+            return true;
+        return false;
+    }
+    Main.isCompatibleValueType = isCompatibleValueType;
     class Scroller {
         elementWrapper;
         elementBackground;
@@ -135,6 +141,7 @@ var Main;
         }
     }
     Main.Scroller = Scroller;
+    // -------------------------------------------------------------
     /** A proxy to a HTML element which can be moved around and removed. */
     class BaseEntity {
         element;
@@ -189,14 +196,6 @@ var Main;
         }
     }
     Main.NotificationManager = NotificationManager;
-    function isCompatibleValueType(sourceType, targetType) {
-        if (sourceType == targetType)
-            return true;
-        if (sourceType == "Message" && targetType == "Message[]")
-            return true;
-        return false;
-    }
-    Main.isCompatibleValueType = isCompatibleValueType;
     /** Utility class for panel. */
     class PanelNode {
         element;
@@ -354,131 +353,6 @@ var Main;
         }
     }
     Main.Panel = Panel;
-    /** Global manager referenced by Panels to manage connections between them. */
-    class PanelManager {
-        panels;
-        connections;
-        currentConnection;
-        constructor() {
-            this.panels = [];
-            this.connections = [];
-            this.currentConnection = null;
-            Globals.mainContainer.addEventListener("mousedown", (e) => this.onMainMouseDown(e));
-        }
-        registerPanel(panel) {
-            this.panels.push(panel);
-            panel.events.listen(this, "remove", (panel) => this.onPanelRemoved(panel));
-            panel.events.listen(this, "nodeHovered", (type, index) => {
-                this.onHoverNode(panel, type, index);
-            });
-            panel.events.listen(this, "nodeUnhovered", (type, index) => {
-                this.onUnhoverNode(panel, type, index);
-            });
-            panel.events.listen(this, "nodeClicked", (type, index) => {
-                if (type === "input")
-                    this.onClickTargetNode(panel, index);
-                else
-                    this.onClickSourceNode(panel, index);
-            });
-        }
-        connect(sourcePanel, sourceindex, targetPanel, targetindex) {
-            const connection = new PanelConnection();
-            connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
-            this.connections.push(connection);
-        }
-        onClickSourceNode(panel, index) {
-            if (this.currentConnection) {
-                // Dont allow if connection cannot connect
-                if (!this.currentConnection.canConnectWith(panel, "output", index)) {
-                    const position = panel.nodes.output[index].getIndicatorRect();
-                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
-                    return;
-                }
-                // Dont allow if connection already exists
-                const existingConnection = this.connections.find((c) => c.sourcePanel === panel &&
-                    c.sourceIndex === index &&
-                    c.targetPanel === this.currentConnection.targetPanel &&
-                    c.targetIndex === this.currentConnection.targetIndex);
-                if (existingConnection) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
-                    return;
-                }
-                // Connect the source node and finish if needed
-                this.currentConnection.setSource(panel, index);
-                if (this.currentConnection.isConnected) {
-                    this.connections.push(this.currentConnection);
-                    this.currentConnection = null;
-                }
-            }
-            else {
-                // Start a new connection if not holding one
-                this.currentConnection = new PanelConnection();
-                this.currentConnection.setSource(panel, index);
-            }
-        }
-        onClickTargetNode(panel, index) {
-            if (this.currentConnection) {
-                // Dont allow if cannot connect
-                if (!this.currentConnection.canConnectWith(panel, "input", index)) {
-                    const position = panel.nodes.input[index].getIndicatorRect();
-                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
-                    return;
-                }
-                // Delete any connections with same target
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
-                if (existingConnection)
-                    existingConnection.remove();
-                // Connect the target node and finish if needed
-                this.currentConnection.setTarget(panel, index);
-                if (this.currentConnection.isConnected) {
-                    this.connections.push(this.currentConnection);
-                    this.currentConnection = null;
-                }
-            }
-            else {
-                // Check if the target node is already connected, and if so grab connection
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
-                if (existingConnection) {
-                    this.currentConnection = existingConnection;
-                    this.currentConnection.unsetTarget();
-                    return;
-                }
-                // Otherwise start a new connection with the target
-                this.currentConnection = new PanelConnection();
-                this.currentConnection.setTarget(panel, index);
-            }
-        }
-        onHoverNode(panel, type, index) {
-            if (this.currentConnection != null && !this.currentConnection.canConnectWith(panel, type, index)) {
-                if (type == "input")
-                    panel.nodes.input[index].setInvalid(true);
-                else
-                    panel.nodes.output[index].setInvalid(true);
-            }
-        }
-        onUnhoverNode(panel, type, index) {
-            if (type == "input")
-                panel.nodes.input[index].setInvalid(false);
-            else
-                panel.nodes.output[index].setInvalid(false);
-        }
-        onConnectionRemoved(connection) {
-            this.connections = this.connections.filter((c) => c !== connection);
-        }
-        onPanelRemoved(panel) {
-            panel.events.unlisten(this);
-            this.panels = this.panels.filter((p) => p !== panel);
-        }
-        onMainMouseDown(e) {
-            e.stopPropagation();
-            if (this.currentConnection) {
-                this.currentConnection.remove();
-                this.currentConnection = null;
-            }
-        }
-    }
-    Main.PanelManager = PanelManager;
     /** Visual and representation of a connection between two panels. */
     class PanelConnection {
         element;
@@ -701,6 +575,158 @@ var Main;
         }
     }
     Main.PanelConnection = PanelConnection;
+    /** Global manager referenced by Panels to manage connections between them. */
+    class PanelManager {
+        panels;
+        connections;
+        currentConnection;
+        constructor() {
+            this.panels = [];
+            this.connections = [];
+            this.currentConnection = null;
+            Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+        }
+        registerPanel(panel) {
+            this.panels.push(panel);
+            panel.events.listen(this, "remove", (panel) => this.onPanelRemoved(panel));
+            panel.events.listen(this, "nodeHovered", (type, index) => {
+                this.onHoverNode(panel, type, index);
+            });
+            panel.events.listen(this, "nodeUnhovered", (type, index) => {
+                this.onUnhoverNode(panel, type, index);
+            });
+            panel.events.listen(this, "nodeClicked", (type, index) => {
+                if (type === "input")
+                    this.onClickTargetNode(panel, index);
+                else
+                    this.onClickSourceNode(panel, index);
+            });
+        }
+        connect(sourcePanel, sourceindex, targetPanel, targetindex) {
+            const connection = new PanelConnection();
+            connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
+            this.connections.push(connection);
+        }
+        onClickSourceNode(panel, index) {
+            if (this.currentConnection) {
+                // Dont allow if connection cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "output", index)) {
+                    const position = panel.nodes.output[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+                    return;
+                }
+                // Dont allow if connection already exists
+                const existingConnection = this.connections.find((c) => c.sourcePanel === panel &&
+                    c.sourceIndex === index &&
+                    c.targetPanel === this.currentConnection.targetPanel &&
+                    c.targetIndex === this.currentConnection.targetIndex);
+                if (existingConnection) {
+                    this.currentConnection.remove();
+                    this.currentConnection = null;
+                    return;
+                }
+                // Connect the source node and finish if needed
+                this.currentConnection.setSource(panel, index);
+                if (this.currentConnection.isConnected) {
+                    this.connections.push(this.currentConnection);
+                    this.currentConnection = null;
+                }
+            }
+            else {
+                // Start a new connection if not holding one
+                this.currentConnection = new PanelConnection();
+                this.currentConnection.setSource(panel, index);
+            }
+        }
+        onClickTargetNode(panel, index) {
+            if (this.currentConnection) {
+                // Dont allow if cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "input", index)) {
+                    const position = panel.nodes.input[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+                    return;
+                }
+                // Delete any connections with same target
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
+                if (existingConnection)
+                    existingConnection.remove();
+                // Connect the target node and finish if needed
+                this.currentConnection.setTarget(panel, index);
+                if (this.currentConnection.isConnected) {
+                    this.connections.push(this.currentConnection);
+                    this.currentConnection = null;
+                }
+            }
+            else {
+                // Check if the target node is already connected, and if so grab connection
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
+                if (existingConnection) {
+                    this.currentConnection = existingConnection;
+                    this.currentConnection.unsetTarget();
+                    return;
+                }
+                // Otherwise start a new connection with the target
+                this.currentConnection = new PanelConnection();
+                this.currentConnection.setTarget(panel, index);
+            }
+        }
+        onHoverNode(panel, type, index) {
+            if (this.currentConnection != null && !this.currentConnection.canConnectWith(panel, type, index)) {
+                if (type == "input")
+                    panel.nodes.input[index].setInvalid(true);
+                else
+                    panel.nodes.output[index].setInvalid(true);
+            }
+        }
+        onUnhoverNode(panel, type, index) {
+            if (type == "input")
+                panel.nodes.input[index].setInvalid(false);
+            else
+                panel.nodes.output[index].setInvalid(false);
+        }
+        onConnectionRemoved(connection) {
+            this.connections = this.connections.filter((c) => c !== connection);
+        }
+        onPanelRemoved(panel) {
+            panel.events.unlisten(this);
+            this.panels = this.panels.filter((p) => p !== panel);
+        }
+        onBackgroundMouseDown(e) {
+            e.stopPropagation();
+            // TODO
+            // if (!Globals.panelCreator.isVisible) Globals.panelCreator.open();
+            // if (this.currentConnection) {
+            //     this.currentConnection.remove();
+            //     this.currentConnection = null;
+            // }
+        }
+        onCreatorClose() { }
+    }
+    Main.PanelManager = PanelManager;
+    class PanelCreator extends BaseEntity {
+        isVisible;
+        constructor() {
+            super(`<div class="panel-creator"></div>`);
+            this.setVisible(true);
+            Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+        }
+        setVisible(isVisible) {
+            this.isVisible = isVisible;
+            this.element.classList.toggle("visible", isVisible);
+        }
+        open() {
+            this.setVisible(true);
+        }
+        close() {
+            this.setVisible(false);
+        }
+        onBackgroundMouseDown(e) {
+            e.stopPropagation();
+            close();
+        }
+    }
+    Main.PanelCreator = PanelCreator;
+    // -------------------------------------------------------------
     /** Panel content, displays messages. */
     class HardcodedEntity extends BaseEntity {
         panel;
@@ -870,8 +896,10 @@ var Main;
 (function () {
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.contentContainer = document.querySelector(".content-container");
+    Globals.contentBackground = Globals.contentContainer.querySelector(".background");
     Globals.svgContainer = document.querySelector(".svg-container");
-    Globals.scroller = new Main.Scroller(Globals.mainContainer, Globals.contentContainer.querySelector(".background"));
+    Globals.panelCreator = new Main.PanelCreator();
+    Globals.scroller = new Main.Scroller(Globals.mainContainer, Globals.contentBackground);
     Globals.notificationManager = new Main.NotificationManager(document.querySelector(".notification-container"));
     Globals.PanelManager = new Main.PanelManager();
     const p1 = new Main.Panel(new Main.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
