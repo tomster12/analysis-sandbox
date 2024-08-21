@@ -42,34 +42,81 @@ var Util;
     Util.createMessageElement = createMessageElement;
     /** A simple event bus for passing events between to listeners. */
     class EventBus {
-        eventToHandleToFunc;
-        handleToEvent;
+        dictEventHandleFunc;
+        dictHandleEvent;
         constructor() {
-            this.eventToHandleToFunc = {};
-            this.handleToEvent = new Map();
+            this.dictEventHandleFunc = {};
+            this.dictHandleEvent = new Map();
         }
         listen(listener, event, callback) {
-            if (!this.eventToHandleToFunc[event])
-                this.eventToHandleToFunc[event] = new Map();
-            this.eventToHandleToFunc[event].set(listener, callback);
-            if (!this.handleToEvent.has(listener))
-                this.handleToEvent.set(listener, []);
-            this.handleToEvent.get(listener).push(event);
+            if (!this.dictEventHandleFunc[event])
+                this.dictEventHandleFunc[event] = new Map();
+            this.dictEventHandleFunc[event].set(listener, callback);
+            if (!this.dictHandleEvent.has(listener))
+                this.dictHandleEvent.set(listener, []);
+            this.dictHandleEvent.get(listener).push(event);
         }
         unlisten(handle) {
-            Util.assert(this.handleToEvent.has(handle), "Handle does not exist");
-            for (const event of this.handleToEvent.get(handle))
-                this.eventToHandleToFunc[event].delete(handle);
-            this.handleToEvent.delete(handle);
+            Util.assert(this.dictHandleEvent.has(handle), "Handle does not exist");
+            for (const event of this.dictHandleEvent.get(handle))
+                this.dictEventHandleFunc[event].delete(handle);
+            this.dictHandleEvent.delete(handle);
         }
         emit(event, ...args) {
-            if (this.eventToHandleToFunc[event] === undefined)
+            if (this.dictEventHandleFunc[event] === undefined)
                 return;
-            for (const [listener, callback] of this.eventToHandleToFunc[event])
+            for (const [listener, callback] of this.dictEventHandleFunc[event])
                 callback(...args);
         }
     }
     Util.EventBus = EventBus;
+    class PriorityEventBus {
+        dictEventPriorityHandleFunc;
+        dictEventPriorities;
+        dictHandleEvent;
+        constructor() {
+            this.dictEventPriorityHandleFunc = {};
+            this.dictEventPriorities = {};
+            this.dictHandleEvent = new Map();
+        }
+        listen(listener, event, priority, callback) {
+            if (!this.dictEventPriorityHandleFunc[event])
+                this.dictEventPriorityHandleFunc[event] = {};
+            if (!this.dictEventPriorityHandleFunc[event][priority])
+                this.dictEventPriorityHandleFunc[event][priority] = new Map();
+            this.dictEventPriorityHandleFunc[event][priority].set(listener, callback);
+            if (!this.dictHandleEvent.has(listener))
+                this.dictHandleEvent.set(listener, []);
+            this.dictHandleEvent.get(listener).push({ event, priority });
+            if (!this.dictEventPriorities[event])
+                this.dictEventPriorities[event] = [];
+            if (this.dictEventPriorities[event].indexOf(priority) == -1) {
+                this.dictEventPriorities[event].push(priority);
+                this.dictEventPriorities[event] = this.dictEventPriorities[event].sort((a, b) => b - a);
+            }
+        }
+        unlisten(handle) {
+            Util.assert(this.dictHandleEvent.has(handle), "Handle does not exist");
+            for (const sub of this.dictHandleEvent.get(handle)) {
+                this.dictEventPriorityHandleFunc[sub.event][sub.priority].delete(handle);
+                if (this.dictEventPriorityHandleFunc[sub.event][sub.priority].size == 0) {
+                    delete this.dictEventPriorityHandleFunc[sub.event][sub.priority];
+                }
+            }
+            this.dictHandleEvent.delete(handle);
+        }
+        emit(event, ...args) {
+            if (this.dictEventPriorityHandleFunc[event] === undefined)
+                return;
+            for (const priority of this.dictEventPriorities[event]) {
+                for (const [listener, callback] of this.dictEventPriorityHandleFunc[event][priority]) {
+                    if (callback(...args))
+                        return;
+                }
+            }
+        }
+    }
+    Util.PriorityEventBus = PriorityEventBus;
 })(Util || (Util = {}));
 var Cipher;
 (function (Cipher) {
@@ -110,7 +157,7 @@ var Main;
             this.initialMouse = { x: 0, y: 0 };
             this.initialScroll = { x: 0, y: 0 };
             this.updateElement();
-            this.elementBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+            Globals.globalEventBus.listen(this, "backgroundmousedown", 0, (e) => this.onBackgroundMouseDown(e));
             this.elementBackground.addEventListener("mousemove", (e) => this.onBackgroundMouseMove(e));
             this.elementBackground.addEventListener("mouseup", (e) => this.onBackgroundMouseUp(e));
         }
@@ -126,6 +173,7 @@ var Main;
             this.initialScroll.y = this.scroll.y;
             document.body.style.cursor = "grabbing";
             this.elementBackground.style.cursor = "grabbing";
+            return true;
         }
         onBackgroundMouseMove(e) {
             if (!this.isDragging)
@@ -584,7 +632,7 @@ var Main;
             this.panels = [];
             this.connections = [];
             this.currentConnection = null;
-            Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+            Globals.globalEventBus.listen(this, "backgroundmousedown", 1, (e) => this.onBackgroundMouseDown(e));
         }
         registerPanel(panel) {
             this.panels.push(panel);
@@ -692,13 +740,15 @@ var Main;
             this.panels = this.panels.filter((p) => p !== panel);
         }
         onBackgroundMouseDown(e) {
-            e.stopPropagation();
-            // TODO
-            // if (!Globals.panelCreator.isVisible) Globals.panelCreator.open();
-            // if (this.currentConnection) {
-            //     this.currentConnection.remove();
-            //     this.currentConnection = null;
-            // }
+            if (this.currentConnection) {
+                if (!Globals.panelCreator.isVisible) {
+                    Globals.panelCreator.open();
+                    // this.currentConnection.remove();
+                    // this.currentConnection = null;
+                    return true;
+                }
+            }
+            return false;
         }
         onCreatorClose() { }
     }
@@ -707,10 +757,11 @@ var Main;
         isVisible;
         constructor() {
             super(`<div class="panel-creator"></div>`);
-            this.setVisible(true);
-            Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+            this.setVisible(false);
+            Globals.globalEventBus.listen(this, "backgroundmousedown", 1, (e) => this.onBackgroundMouseDown(e));
         }
         setVisible(isVisible) {
+            console.log(`Setting visible: ${isVisible}`);
             this.isVisible = isVisible;
             this.element.classList.toggle("visible", isVisible);
         }
@@ -721,8 +772,10 @@ var Main;
             this.setVisible(false);
         }
         onBackgroundMouseDown(e) {
-            e.stopPropagation();
-            close();
+            if (!this.isVisible)
+                return false;
+            this.close();
+            return true;
         }
     }
     Main.PanelCreator = PanelCreator;
@@ -898,10 +951,12 @@ var Main;
     Globals.contentContainer = document.querySelector(".content-container");
     Globals.contentBackground = Globals.contentContainer.querySelector(".background");
     Globals.svgContainer = document.querySelector(".svg-container");
+    Globals.globalEventBus = new Util.PriorityEventBus();
     Globals.panelCreator = new Main.PanelCreator();
     Globals.scroller = new Main.Scroller(Globals.mainContainer, Globals.contentBackground);
     Globals.notificationManager = new Main.NotificationManager(document.querySelector(".notification-container"));
     Globals.PanelManager = new Main.PanelManager();
+    Globals.contentBackground.addEventListener("mousedown", (e) => Globals.globalEventBus.emit("backgroundmousedown", e));
     const p1 = new Main.Panel(new Main.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
     const p2 = new Main.Panel(new Main.HardcodedEntity([
         Cipher.Message.parseFromString("0123232433422323"),
