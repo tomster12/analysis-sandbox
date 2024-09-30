@@ -3,7 +3,6 @@ namespace Globals {
     export let contentContainer: HTMLElement;
     export let contentBackground: HTMLElement;
     export let svgContainer: HTMLElement;
-
     export let panelCreator: Main.PanelCreator;
     export let scroller: Main.Scroller;
     export let notificationManager: Main.NotificationManager;
@@ -48,7 +47,7 @@ namespace Util {
         return parent;
     }
 
-    /** A simple event bus for passing events between to listeners. */
+    /** A simple event bus for passing events to listeners. */
     export class EventBus {
         eventToHandleToFunc: { [key: string]: Map<object, Function> };
         handleToEvent: Map<object, string[]>;
@@ -108,6 +107,7 @@ namespace Main {
         return false;
     }
 
+    /** Listens to mouse events on a background element and scrolls a target element. */
     export class Scroller {
         elementWrapper: HTMLElement;
         elementBackground: HTMLElement;
@@ -158,9 +158,7 @@ namespace Main {
         }
     }
 
-    // -------------------------------------------------------------
-
-    /** A proxy to a HTML element which can be moved around and removed. */
+    /** A proxy to an HTML element which can be moved around and removed. */
     export class BaseEntity {
         element: HTMLElement;
         events: Util.EventBus;
@@ -198,10 +196,9 @@ namespace Main {
         }
     }
 
-    // -------------------------------------------------------------
-
     export type NotificationType = "info" | "warning" | "error";
 
+    /** Handles adding notifications to the screen. */
     export class NotificationManager {
         container: HTMLElement;
 
@@ -227,8 +224,6 @@ namespace Main {
             }, 1200);
         }
     }
-
-    // -------------------------------------------------------------
 
     export type PanelNodeType = "input" | "output";
 
@@ -802,6 +797,7 @@ namespace Main {
         onCreatorClose() {}
     }
 
+    /** Handles creating new panels by dragging from the background. */
     export class PanelCreator extends BaseEntity {
         isVisible: boolean;
 
@@ -829,8 +825,6 @@ namespace Main {
             close();
         }
     }
-
-    // -------------------------------------------------------------
 
     /** Panel content, displays messages. */
     export class HardcodedEntity extends BaseEntity implements IPanelContent {
@@ -993,6 +987,7 @@ namespace Main {
         }
     }
 
+    /** Panel content, debug block. */
     export class BlockEntity extends BaseEntity implements IPanelContent {
         panel: Panel;
 
@@ -1028,14 +1023,12 @@ namespace Main {
     Globals.contentContainer = document.querySelector(".content-container");
     Globals.contentBackground = Globals.contentContainer.querySelector(".background");
     Globals.svgContainer = document.querySelector(".svg-container");
-
     Globals.panelCreator = new Main.PanelCreator();
     Globals.scroller = new Main.Scroller(Globals.mainContainer, Globals.contentBackground);
     Globals.notificationManager = new Main.NotificationManager(document.querySelector(".notification-container"));
     Globals.PanelManager = new Main.PanelManager();
 
     const p1 = new Main.Panel(new Main.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
-
     const p2 = new Main.Panel(
         new Main.HardcodedEntity([
             Cipher.Message.parseFromString("0123232433422323"),
@@ -1044,15 +1037,10 @@ namespace Main {
         ]),
         "Text"
     );
-
     const p3 = new Main.Panel(new Main.PreviewMessagesEntity(), "Preview");
-
     const p6 = new Main.Panel(new Main.PreviewMessagesEntity(), "Preview");
-
     const p4 = new Main.Panel(new Main.SplitMessagesEntity(), "Split");
-
     const p5 = new Main.Panel(new Main.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
-
     const p7 = new Main.Panel(new Main.BlockEntity(), "Block");
 
     p1.setPosition(70, 100);

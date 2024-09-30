@@ -40,7 +40,7 @@ var Util;
         return parent;
     }
     Util.createMessageElement = createMessageElement;
-    /** A simple event bus for passing events between to listeners. */
+    /** A simple event bus for passing events to listeners. */
     class EventBus {
         eventToHandleToFunc;
         handleToEvent;
@@ -96,6 +96,7 @@ var Main;
         return false;
     }
     Main.isCompatibleValueType = isCompatibleValueType;
+    /** Listens to mouse events on a background element and scrolls a target element. */
     class Scroller {
         elementWrapper;
         elementBackground;
@@ -141,8 +142,7 @@ var Main;
         }
     }
     Main.Scroller = Scroller;
-    // -------------------------------------------------------------
-    /** A proxy to a HTML element which can be moved around and removed. */
+    /** A proxy to an HTML element which can be moved around and removed. */
     class BaseEntity {
         element;
         events;
@@ -174,6 +174,7 @@ var Main;
         }
     }
     Main.BaseEntity = BaseEntity;
+    /** Handles adding notifications to the screen. */
     class NotificationManager {
         container;
         constructor(elementContainer) {
@@ -703,6 +704,7 @@ var Main;
         onCreatorClose() { }
     }
     Main.PanelManager = PanelManager;
+    /** Handles creating new panels by dragging from the background. */
     class PanelCreator extends BaseEntity {
         isVisible;
         constructor() {
@@ -726,7 +728,6 @@ var Main;
         }
     }
     Main.PanelCreator = PanelCreator;
-    // -------------------------------------------------------------
     /** Panel content, displays messages. */
     class HardcodedEntity extends BaseEntity {
         panel;
@@ -869,6 +870,7 @@ var Main;
         }
     }
     Main.SplitMessagesEntity = SplitMessagesEntity;
+    /** Panel content, debug block. */
     class BlockEntity extends BaseEntity {
         panel;
         constructor() {
