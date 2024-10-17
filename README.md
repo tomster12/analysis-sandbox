@@ -1,6 +1,6 @@
 # Analysis Sandbox
 
-https://tomster12.github.io/web-analysis-2/
+https://tomster12.github.io/analysis-sandbox/
 
 ## Planned Features
 
