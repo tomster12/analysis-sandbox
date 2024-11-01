@@ -117,81 +117,8 @@ var Util;
         }
     }
     Util.PriorityEventBus = PriorityEventBus;
-})(Util || (Util = {}));
-var Cipher;
-(function (Cipher) {
-    /** Generic message class used by cryptography. */
-    class Message {
-        letters;
-        constructor(letters) {
-            this.letters = letters;
-        }
-        static parseFromString(text, delimeter = "") {
-            return new Message(text.split(delimeter));
-        }
-        equals(other) {
-            return this.letters.length === other.letters.length && this.letters.every((v, i) => v === other.letters[i]);
-        }
-    }
-    Cipher.Message = Message;
-})(Cipher || (Cipher = {}));
-var Main;
-(function (Main) {
-    function isCompatibleValueType(sourceType, targetType) {
-        if (sourceType == targetType)
-            return true;
-        return false;
-    }
-    Main.isCompatibleValueType = isCompatibleValueType;
-    /** Listens to mouse events on a background element and scrolls a target element. */
-    class Scroller {
-        elementWrapper;
-        elementBackground;
-        isDragging;
-        scroll;
-        initialMouse;
-        initialScroll;
-        constructor(elementWrapper, elementBackground) {
-            this.elementWrapper = elementWrapper;
-            this.elementBackground = elementBackground;
-            this.scroll = { x: 0, y: 0 };
-            this.initialMouse = { x: 0, y: 0 };
-            this.initialScroll = { x: 0, y: 0 };
-            this.updateElement();
-            Globals.globalEventBus.listen(this, "backgroundmousedown", 0, (e) => this.onBackgroundMouseDown(e));
-            this.elementBackground.addEventListener("mousemove", (e) => this.onBackgroundMouseMove(e));
-            this.elementBackground.addEventListener("mouseup", (e) => this.onBackgroundMouseUp(e));
-        }
-        updateElement() {
-            this.elementWrapper.scrollLeft = this.scroll.x;
-            this.elementWrapper.scrollTop = this.scroll.y;
-        }
-        onBackgroundMouseDown(e) {
-            this.isDragging = true;
-            this.initialMouse.x = e.clientX;
-            this.initialMouse.y = e.clientY;
-            this.initialScroll.x = this.scroll.x;
-            this.initialScroll.y = this.scroll.y;
-            document.body.style.cursor = "grabbing";
-            this.elementBackground.style.cursor = "grabbing";
-            return true;
-        }
-        onBackgroundMouseMove(e) {
-            if (!this.isDragging)
-                return;
-            this.scroll.x = Math.max(0, this.initialScroll.x - (e.clientX - this.initialMouse.x));
-            this.scroll.y = Math.max(0, this.initialScroll.y - (e.clientY - this.initialMouse.y));
-            this.updateElement();
-        }
-        onBackgroundMouseUp(e) {
-            this.isDragging = false;
-            document.body.style.cursor = "default";
-            this.elementBackground.style.cursor = "grab";
-        }
-    }
-    Main.Scroller = Scroller;
     /** A proxy to an HTML element which can be moved around and removed. */
-    class BaseEntity {
+    class ElementProxy {
         element;
         events;
         position;
@@ -221,15 +148,77 @@ var Main;
             return this.element;
         }
     }
-    Main.BaseEntity = BaseEntity;
-    /** Handles adding notifications to the screen. */
+    Util.ElementProxy = ElementProxy;
+    /** Listens to mouse events on a background element and scrolls a target element. */
+    class ElementScroller {
+        elementMain;
+        elementClick;
+        isDragging;
+        canDrag;
+        scroll;
+        initialMouse;
+        initialScroll;
+        constructor(elementMain, elementClick) {
+            this.elementMain = elementMain;
+            this.elementClick = elementClick;
+            this.isDragging = false;
+            this.canDrag = true;
+            this.scroll = { x: 0, y: 0 };
+            this.initialMouse = { x: 0, y: 0 };
+            this.initialScroll = { x: 0, y: 0 };
+            this.updateElement();
+            this.elementClick.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+            this.elementClick.addEventListener("mousemove", (e) => this.onBackgroundMouseMove(e));
+            this.elementClick.addEventListener("mouseup", (e) => this.onBackgroundMouseUp(e));
+        }
+        updateElement() {
+            this.elementMain.scrollLeft = this.scroll.x;
+            this.elementMain.scrollTop = this.scroll.y;
+        }
+        onBackgroundMouseDown(e) {
+            if (!this.canDrag)
+                return;
+            this.isDragging = true;
+            this.initialMouse.x = e.clientX;
+            this.initialMouse.y = e.clientY;
+            this.initialScroll.x = this.scroll.x;
+            this.initialScroll.y = this.scroll.y;
+            document.body.style.cursor = "grabbing";
+            this.elementClick.style.cursor = "grabbing";
+            return true;
+        }
+        onBackgroundMouseMove(e) {
+            if (!this.isDragging)
+                return;
+            this.scroll.x = Math.max(0, this.initialScroll.x - (e.clientX - this.initialMouse.x));
+            this.scroll.y = Math.max(0, this.initialScroll.y - (e.clientY - this.initialMouse.y));
+            this.updateElement();
+        }
+        onBackgroundMouseUp(e) {
+            if (!this.isDragging)
+                return;
+            this.isDragging = false;
+            document.body.style.cursor = "default";
+            this.elementClick.style.cursor = "grab";
+        }
+        setCanDrag(isEnabled) {
+            this.canDrag = isEnabled;
+            this.elementClick.style.cursor = isEnabled ? "grab" : "default";
+            if (!isEnabled) {
+                this.isDragging = false;
+                document.body.style.cursor = "default";
+            }
+        }
+    }
+    Util.ElementScroller = ElementScroller;
+    /** Handles adding notifications to an element. */
     class NotificationManager {
         container;
         constructor(elementContainer) {
             this.container = elementContainer;
         }
         notify(message, position, type = "info") {
-            const el = new BaseEntity(`
+            const el = new Util.ElementProxy(`
                 <div class="notification ${type}">
                     <div><img></img></div>
                     <span>${message}</span>
@@ -244,7 +233,33 @@ var Main;
             }, 1200);
         }
     }
-    Main.NotificationManager = NotificationManager;
+    Util.NotificationManager = NotificationManager;
+})(Util || (Util = {}));
+var Cipher;
+(function (Cipher) {
+    /** Generic message class used by cryptography. */
+    class Message {
+        letters;
+        constructor(letters) {
+            this.letters = letters;
+        }
+        static parseFromString(text, delimeter = "") {
+            return new Message(text.split(delimeter));
+        }
+        equals(other) {
+            return this.letters.length === other.letters.length && this.letters.every((v, i) => v === other.letters[i]);
+        }
+    }
+    Cipher.Message = Message;
+})(Cipher || (Cipher = {}));
+var Panel;
+(function (Panel_1) {
+    function isCompatibleValueType(sourceType, targetType) {
+        if (sourceType == targetType)
+            return true;
+        return false;
+    }
+    Panel_1.isCompatibleValueType = isCompatibleValueType;
     /** Utility class for panel. */
     class PanelNode {
         element;
@@ -268,9 +283,9 @@ var Main;
             return this.elementIndicator.getBoundingClientRect();
         }
     }
-    Main.PanelNode = PanelNode;
+    Panel_1.PanelNode = PanelNode;
     /** Panel which can contain content and have input / output nodes. */
-    class Panel extends BaseEntity {
+    class Panel extends Util.ElementProxy {
         elementBar;
         elementBarTitle;
         elementBarClose;
@@ -286,23 +301,23 @@ var Main;
         initialOffsetY;
         constructor(content, title) {
             super(`
-                <div class="panel-entity">
-                    <div class="panel-entity-bar">
-                        <div class="panel-entity-bar-title">${title}</div>
-                        <img class="panel-entity-bar-close"></img>
+                <div class="panel">
+                    <div class="panel-bar">
+                        <div class="panel-bar-title">${title}</div>
+                        <img class="panel-bar-close"></img>
                     </div>
-                    <div class="panel-entity-body">
-                        <div class="panel-entity-nodes input"></div>
-                        <div class="panel-entity-content"></div>
-                        <div class="panel-entity-nodes output"></div>
+                    <div class="panel-body">
+                        <div class="panel-nodes input"></div>
+                        <div class="panel-content"></div>
+                        <div class="panel-nodes output"></div>
                     </div>
                 </div>`);
-            this.elementBar = this.element.querySelector(".panel-entity-bar");
-            this.elementBarTitle = this.element.querySelector(".panel-entity-bar-title");
-            this.elementBarClose = this.element.querySelector(".panel-entity-bar-close");
-            this.elementContent = this.element.querySelector(".panel-entity-content");
-            this.elementInputNodes = this.element.querySelector(".panel-entity-nodes.input");
-            this.elementOutputNodes = this.element.querySelector(".panel-entity-nodes.output");
+            this.elementBar = this.element.querySelector(".panel-bar");
+            this.elementBarTitle = this.element.querySelector(".panel-bar-title");
+            this.elementBarClose = this.element.querySelector(".panel-bar-close");
+            this.elementContent = this.element.querySelector(".panel-content");
+            this.elementInputNodes = this.element.querySelector(".panel-nodes.input");
+            this.elementOutputNodes = this.element.querySelector(".panel-nodes.output");
             this.elementBar.addEventListener("mousedown", (e) => this.onBarMouseDown(e));
             this.elementBarClose.addEventListener("mousedown", (e) => this.onCloseMouseDown(e));
             document.addEventListener("mousemove", (e) => this.onMouseMove(e));
@@ -316,11 +331,10 @@ var Main;
             this.content = content;
             this.elementContent.appendChild(this.content.getHTMLElement());
             this.content.setPanel(this);
-            Globals.PanelManager.registerPanel(this);
         }
         createNode(type, index) {
             const element = Util.createHTMLElement(`
-                <div class="panel-entity-node">
+                <div class="panel-node">
                     <div class="hover-box"></div>
                     <div class="indicator"></div>
                     <span class="label"></span>
@@ -401,7 +415,7 @@ var Main;
             this.elementBar.style.cursor = "grab";
         }
     }
-    Main.Panel = Panel;
+    Panel_1.Panel = Panel;
     /** Visual and representation of a connection between two panels. */
     class PanelConnection {
         element;
@@ -412,11 +426,9 @@ var Main;
         targetIndex;
         sourceScreenPos;
         targetScreenPos;
-        mouseMoveListener = (e) => this.onMouseMoved(e);
         constructor() {
             this.element = document.createElementNS("http://www.w3.org/2000/svg", "path");
             Globals.svgContainer.appendChild(this.element);
-            document.addEventListener("mousemove", this.mouseMoveListener);
             this.isConnected = false;
         }
         setSource(panel, index) {
@@ -455,7 +467,7 @@ var Main;
         }
         canConnectWith(panel, type, index) {
             // Dont allow if any of the following:
-            // - Same panel -> panel
+            // - Panel -> self
             // - Input -> input OR output -> output
             // - Incompatible types (directional)
             if (this.isConnected)
@@ -492,7 +504,6 @@ var Main;
         establish() {
             this.isConnected = true;
             document.body.style.cursor = "default";
-            document.removeEventListener("mousemove", this.mouseMoveListener);
             this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(false);
             this.targetPanel.nodes.input[this.targetIndex].setConnecting(false);
             this.sourcePanel.events.listen(this, "outputUpdated", (index, value) => {
@@ -503,7 +514,6 @@ var Main;
             this.targetPanel.setInput(this.targetIndex, value);
         }
         remove() {
-            document.removeEventListener("mousemove", this.mouseMoveListener);
             document.body.style.cursor = "default";
             if (this.sourcePanel) {
                 this.sourcePanel.events.unlisten(this);
@@ -520,13 +530,12 @@ var Main;
                 }
             }
             this.element.remove();
-            Globals.PanelManager.onConnectionRemoved(this);
+            Globals.worldManager.onConnectionRemoved(this);
         }
         unsetSource() {
             Util.assert(this.isConnected, "Connection is not connected");
             this.isConnected = false;
             document.body.style.cursor = "pointer";
-            document.addEventListener("mousemove", this.mouseMoveListener);
             this.targetPanel.onConnectionDisconnect("output", this.sourceIndex);
             this.targetPanel.nodes.input[this.targetIndex].setConnecting(true);
             this.sourcePanel.events.unlisten(this);
@@ -538,7 +547,6 @@ var Main;
             Util.assert(this.isConnected, "Connection is not connected");
             this.isConnected = false;
             document.body.style.cursor = "pointer";
-            document.addEventListener("mousemove", this.mouseMoveListener);
             this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(true);
             this.targetPanel.onConnectionDisconnect("input", this.targetIndex);
             this.targetPanel.events.unlisten(this);
@@ -605,188 +613,28 @@ var Main;
             this.recalculateTargetPos();
             this.updateElement();
         }
-        onMouseMoved(e) {
-            // Stop caring the mouse position if it's already connected
+        setTargetPosition(x, y) {
+            // Stop caring about the set position once already connected
             if (this.isConnected)
-                document.removeEventListener("mousemove", this.mouseMoveListener);
-            const mousePos = { x: e.clientX, y: e.clientY };
-            mousePos.x += Globals.scroller.scroll.x;
-            mousePos.y += Globals.scroller.scroll.y;
+                throw new Error("Cannot set target position of connected connection");
             if (!this.sourcePanel)
-                this.sourceScreenPos = mousePos;
+                this.sourceScreenPos = { x, y };
             else
                 this.recalculateSourcePos();
             if (!this.targetPanel)
-                this.targetScreenPos = mousePos;
+                this.targetScreenPos = { x, y };
             else
                 this.recalculateTargetPos();
             this.updateElement();
         }
     }
-    Main.PanelConnection = PanelConnection;
-    /** Global manager referenced by Panels to manage connections between them. */
-    class PanelManager {
-        panels;
-        connections;
-        currentConnection;
-        constructor() {
-            this.panels = [];
-            this.connections = [];
-            this.currentConnection = null;
-            Globals.globalEventBus.listen(this, "backgroundmousedown", 1, (e) => this.onBackgroundMouseDown(e));
-        }
-        registerPanel(panel) {
-            this.panels.push(panel);
-            panel.events.listen(this, "remove", (panel) => this.onPanelRemoved(panel));
-            panel.events.listen(this, "nodeHovered", (type, index) => {
-                this.onHoverNode(panel, type, index);
-            });
-            panel.events.listen(this, "nodeUnhovered", (type, index) => {
-                this.onUnhoverNode(panel, type, index);
-            });
-            panel.events.listen(this, "nodeClicked", (type, index) => {
-                if (type === "input")
-                    this.onClickTargetNode(panel, index);
-                else
-                    this.onClickSourceNode(panel, index);
-            });
-        }
-        connect(sourcePanel, sourceindex, targetPanel, targetindex) {
-            const connection = new PanelConnection();
-            connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
-            this.connections.push(connection);
-        }
-        onClickSourceNode(panel, index) {
-            if (this.currentConnection) {
-                // Dont allow if connection cannot connect
-                if (!this.currentConnection.canConnectWith(panel, "output", index)) {
-                    const position = panel.nodes.output[index].getIndicatorRect();
-                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
-                    return;
-                }
-                // Dont allow if connection already exists
-                const existingConnection = this.connections.find((c) => c.sourcePanel === panel &&
-                    c.sourceIndex === index &&
-                    c.targetPanel === this.currentConnection.targetPanel &&
-                    c.targetIndex === this.currentConnection.targetIndex);
-                if (existingConnection) {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
-                    return;
-                }
-                // Connect the source node and finish if needed
-                this.currentConnection.setSource(panel, index);
-                if (this.currentConnection.isConnected) {
-                    this.connections.push(this.currentConnection);
-                    this.currentConnection = null;
-                }
-            }
-            else {
-                // Start a new connection if not holding one
-                this.currentConnection = new PanelConnection();
-                this.currentConnection.setSource(panel, index);
-            }
-        }
-        onClickTargetNode(panel, index) {
-            if (this.currentConnection) {
-                // Dont allow if cannot connect
-                if (!this.currentConnection.canConnectWith(panel, "input", index)) {
-                    const position = panel.nodes.input[index].getIndicatorRect();
-                    Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
-                    return;
-                }
-                // Delete any connections with same target
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
-                if (existingConnection)
-                    existingConnection.remove();
-                // Connect the target node and finish if needed
-                this.currentConnection.setTarget(panel, index);
-                if (this.currentConnection.isConnected) {
-                    this.connections.push(this.currentConnection);
-                    this.currentConnection = null;
-                }
-            }
-            else {
-                // Check if the target node is already connected, and if so grab connection
-                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
-                if (existingConnection) {
-                    this.currentConnection = existingConnection;
-                    this.currentConnection.unsetTarget();
-                    return;
-                }
-                // Otherwise start a new connection with the target
-                this.currentConnection = new PanelConnection();
-                this.currentConnection.setTarget(panel, index);
-            }
-        }
-        onHoverNode(panel, type, index) {
-            if (this.currentConnection != null && !this.currentConnection.canConnectWith(panel, type, index)) {
-                if (type == "input")
-                    panel.nodes.input[index].setInvalid(true);
-                else
-                    panel.nodes.output[index].setInvalid(true);
-            }
-        }
-        onUnhoverNode(panel, type, index) {
-            if (type == "input")
-                panel.nodes.input[index].setInvalid(false);
-            else
-                panel.nodes.output[index].setInvalid(false);
-        }
-        onConnectionRemoved(connection) {
-            this.connections = this.connections.filter((c) => c !== connection);
-        }
-        onPanelRemoved(panel) {
-            panel.events.unlisten(this);
-            this.panels = this.panels.filter((p) => p !== panel);
-        }
-        onBackgroundMouseDown(e) {
-            if (this.currentConnection) {
-                if (!Globals.panelCreator.isVisible) {
-                    Globals.panelCreator.open();
-                    // this.currentConnection.remove();
-                    // this.currentConnection = null;
-                    return true;
-                }
-            }
-            return false;
-        }
-        onCreatorClose() { }
-    }
-    Main.PanelManager = PanelManager;
-    /** Handles creating new panels by dragging from the background. */
-    class PanelCreator extends BaseEntity {
-        isVisible;
-        constructor() {
-            super(`<div class="panel-creator"></div>`);
-            this.setVisible(false);
-            Globals.globalEventBus.listen(this, "backgroundmousedown", 1, (e) => this.onBackgroundMouseDown(e));
-        }
-        setVisible(isVisible) {
-            console.log(`Setting visible: ${isVisible}`);
-            this.isVisible = isVisible;
-            this.element.classList.toggle("visible", isVisible);
-        }
-        open() {
-            this.setVisible(true);
-        }
-        close() {
-            this.setVisible(false);
-        }
-        onBackgroundMouseDown(e) {
-            if (!this.isVisible)
-                return false;
-            this.close();
-            return true;
-        }
-    }
-    Main.PanelCreator = PanelCreator;
+    Panel_1.PanelConnection = PanelConnection;
     /** Panel content, displays messages. */
-    class HardcodedEntity extends BaseEntity {
+    class TextPanelContent extends Util.ElementProxy {
         panel;
         messages;
         constructor(messages) {
-            super(`<div class="hardcoded-entity"></div>`);
+            super(`<div class="hardcoded-panel-content"></div>`);
             this.messages = messages;
             this.element.innerHTML = "";
             this.messages.forEach((message) => {
@@ -812,13 +660,13 @@ var Main;
         }
         onConnectionDisconnect(type, index) { }
     }
-    Main.HardcodedEntity = HardcodedEntity;
+    Panel_1.TextPanelContent = TextPanelContent;
     /** Panel content, previews messages. */
-    class PreviewMessagesEntity extends BaseEntity {
+    class PreviewMessagesPanelContent extends Util.ElementProxy {
         panel;
         messages;
         constructor() {
-            super(`<div class="preview-messages-entity empty"></div>`);
+            super(`<div class="preview-messages-panel-content empty"></div>`);
         }
         setPanel(panel) {
             this.panel = panel;
@@ -829,9 +677,10 @@ var Main;
         setInput(index, value) {
             Util.assert(index == 0, "TextEntity only has one input");
             // Exit early with notification if the value is invalid
+            // This shouldn't be reached due to connection.canConnectWith()
             if (!Util.isCipherMessageArray(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
-                Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+                Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
             // Exit early if the value is the same
@@ -867,14 +716,14 @@ var Main;
                 this.setInput(0, []);
         }
     }
-    Main.PreviewMessagesEntity = PreviewMessagesEntity;
+    Panel_1.PreviewMessagesPanelContent = PreviewMessagesPanelContent;
     /** Panel content, splits messages into lines. */
-    class SplitMessagesEntity extends BaseEntity {
+    class SplitMessagesPanelContent extends Util.ElementProxy {
         elementCount;
         panel;
         messages;
         constructor() {
-            super(`<div class="split-messages-entity"><p>0</p></div>`);
+            super(`<div class="split-messages-panel-content"><p>0</p></div>`);
             this.elementCount = this.element.querySelector("p");
         }
         setPanel(panel) {
@@ -885,9 +734,10 @@ var Main;
         setInput(index, value) {
             Util.assert(index == 0, "SplitTextEntity only has one input");
             // Exit early with notification if the value is invalid
+            // This shouldn't be reached due to connection.canConnectWith()
             if (!Util.isCipherMessageArray(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
-                Globals.notificationManager.notify("Wrong input type", { x: position.left - 50, y: position.top - 35 }, "error");
+                Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
             // Exit early if the value is the same
@@ -922,12 +772,12 @@ var Main;
                 this.setInput(0, []);
         }
     }
-    Main.SplitMessagesEntity = SplitMessagesEntity;
+    Panel_1.SplitMessagesPanelContent = SplitMessagesPanelContent;
     /** Panel content, debug block. */
-    class BlockEntity extends BaseEntity {
+    class BlockPanelContent extends Util.ElementProxy {
         panel;
         constructor() {
-            super(`<div class="block-entity"></div>`);
+            super(`<div class="block-panel-content"></div>`);
         }
         setPanel(panel) {
             this.panel = panel;
@@ -946,30 +796,278 @@ var Main;
         }
         onConnectionDisconnect(type, index) { }
     }
-    Main.BlockEntity = BlockEntity;
-})(Main || (Main = {}));
+    Panel_1.BlockPanelContent = BlockPanelContent;
+    /** Handles creating new panels by dragging from the background. */
+    class PanelCreator extends Util.ElementProxy {
+        isVisible;
+        constructor() {
+            super(`<div class="panel-creator"></div>`);
+            this.setVisible(false);
+            this.setPosition(0, 0);
+            // Add buttons for each panel type
+            const buttonTypes = ["Text", "Preview", "Split", "Block"];
+            buttonTypes.forEach((type) => {
+                const button = Util.createHTMLElement(`<div class="panel-creator-button">${type}</div>`);
+                button.addEventListener("click", () => this.selectPanelType(type));
+                this.element.appendChild(button);
+            });
+        }
+        selectPanelType(type) {
+            Globals.worldManager.selectPanelType(type);
+            this.setVisible(false);
+        }
+        setVisible(isVisible) {
+            this.isVisible = isVisible;
+            this.element.classList.toggle("visible", isVisible);
+        }
+        open(x, y) {
+            this.setVisible(true);
+            this.setPosition(x, y);
+        }
+        close() {
+            this.setVisible(false);
+        }
+    }
+    Panel_1.PanelCreator = PanelCreator;
+    /** Global manager for panel connections, panel creation. */
+    class WorldManager {
+        panels;
+        connections;
+        currentConnection;
+        panelCreator;
+        constructor() {
+            this.panels = [];
+            this.connections = [];
+            this.currentConnection = null;
+            this.panelCreator = new PanelCreator();
+            Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
+            Globals.contentContainer.addEventListener("mousemove", (e) => this.onMouseMove(e));
+        }
+        addPanel(panel) {
+            this.panels.push(panel);
+            panel.events.listen(this, "remove", (panel) => this.onPanelRemoved(panel));
+            panel.events.listen(this, "nodeHovered", (type, index) => {
+                this.onHoverPanelNode(panel, type, index);
+            });
+            panel.events.listen(this, "nodeUnhovered", (type, index) => {
+                this.onUnhoverPanelNode(panel, type, index);
+            });
+            panel.events.listen(this, "nodeClicked", (type, index) => {
+                if (type === "input")
+                    this.onClickPanelTargetNode(panel, index);
+                else
+                    this.onClickPanelSourceNode(panel, index);
+            });
+            return panel;
+        }
+        connectPanels(sourcePanel, sourceindex, targetPanel, targetindex) {
+            const connection = new PanelConnection();
+            connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
+            this.connections.push(connection);
+        }
+        onClickPanelSourceNode(panel, index) {
+            if (this.currentConnection) {
+                // Dont allow if connection cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "output", index)) {
+                    const position = panel.nodes.output[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Cannot connect to node", { x: position.left - 50, y: position.top - 35 }, "error");
+                    return;
+                }
+                // Dont allow if connection already exists
+                const existingConnection = this.connections.find((c) => c.sourcePanel === panel &&
+                    c.sourceIndex === index &&
+                    c.targetPanel === this.currentConnection.targetPanel &&
+                    c.targetIndex === this.currentConnection.targetIndex);
+                if (existingConnection) {
+                    this.currentConnection.remove();
+                    this.currentConnection = null;
+                    this.onHeldConnectionFinish();
+                    return;
+                }
+                // Connect the source node and finish if needed
+                this.currentConnection.setSource(panel, index);
+                Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting source");
+                this.connections.push(this.currentConnection);
+                this.currentConnection = null;
+                this.onHeldConnectionFinish();
+            }
+            else {
+                // Start a new connection if not holding one
+                this.currentConnection = new PanelConnection();
+                this.currentConnection.setSource(panel, index);
+                this.onHeldConnectionStart();
+            }
+        }
+        onClickPanelTargetNode(panel, index) {
+            if (this.currentConnection) {
+                // Dont allow if cannot connect
+                if (!this.currentConnection.canConnectWith(panel, "input", index)) {
+                    const position = panel.nodes.input[index].getIndicatorRect();
+                    Globals.notificationManager.notify("Cannot connect to node", { x: position.left - 50, y: position.top - 35 }, "error");
+                    return;
+                }
+                // Delete any connections with same target
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
+                if (existingConnection)
+                    existingConnection.remove();
+                // Connect the target node and finish if needed
+                this.currentConnection.setTarget(panel, index);
+                Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting target");
+                this.connections.push(this.currentConnection);
+                this.currentConnection = null;
+                this.onHeldConnectionFinish();
+            }
+            else {
+                // Check if the target node is already connected, and if so grab connection
+                const existingConnection = this.connections.find((c) => c.targetPanel === panel && c.targetIndex === index);
+                if (existingConnection) {
+                    this.currentConnection = existingConnection;
+                    this.currentConnection.unsetTarget();
+                    this.connections = this.connections.filter((c) => c !== this.currentConnection);
+                    this.onHeldConnectionStart();
+                    return;
+                }
+                // Otherwise start a new connection with the target
+                this.currentConnection = new PanelConnection();
+                this.currentConnection.setTarget(panel, index);
+                this.onHeldConnectionStart();
+            }
+        }
+        onHeldConnectionStart() {
+            Globals.scroller.setCanDrag(false);
+        }
+        onHeldConnectionFinish() {
+            Globals.scroller.setCanDrag(true);
+        }
+        onHoverPanelNode(panel, type, index) {
+            if (this.currentConnection != null && !this.currentConnection.canConnectWith(panel, type, index)) {
+                if (type == "input")
+                    panel.nodes.input[index].setInvalid(true);
+                else
+                    panel.nodes.output[index].setInvalid(true);
+            }
+        }
+        onUnhoverPanelNode(panel, type, index) {
+            if (type == "input")
+                panel.nodes.input[index].setInvalid(false);
+            else
+                panel.nodes.output[index].setInvalid(false);
+        }
+        onConnectionRemoved(connection) {
+            this.connections = this.connections.filter((c) => c !== connection);
+        }
+        onPanelRemoved(panel) {
+            panel.events.unlisten(this);
+            this.panels = this.panels.filter((p) => p !== panel);
+        }
+        selectPanelType(type) {
+            // Add panel to world
+            const position = this.panelCreator.getPosition();
+            let panel;
+            switch (type) {
+                case "Text":
+                    panel = this.addPanel(new Panel(new TextPanelContent([]), "Text")).setPosition(position.x, position.y);
+                    break;
+                case "Preview":
+                    panel = this.addPanel(new Panel(new PreviewMessagesPanelContent(), "Preview")).setPosition(position.x, position.y);
+                    break;
+                case "Split":
+                    panel = this.addPanel(new Panel(new SplitMessagesPanelContent(), "Split")).setPosition(position.x, position.y);
+                    break;
+                case "Block":
+                    panel = this.addPanel(new Panel(new BlockPanelContent(), "Block")).setPosition(position.x, position.y);
+                    break;
+                default:
+                    throw new Error(`Unknown panel type ${type}`);
+            }
+            // Try connect to new panel index 0
+            if (this.currentConnection) {
+                let successful = false;
+                // Try connect to source
+                if (this.currentConnection.sourcePanel) {
+                    if (!this.currentConnection.canConnectWith(panel, "input", 0)) {
+                        Globals.notificationManager.notify("Cannot connect to input node", { x: position.x - 50, y: position.y - 35 }, "error");
+                    }
+                    else {
+                        this.currentConnection.setTarget(panel, 0);
+                        Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting target");
+                        successful = true;
+                    }
+                }
+                // Try connect to target
+                else {
+                    if (!this.currentConnection.canConnectWith(panel, "output", 0)) {
+                        Globals.notificationManager.notify("Cannot connect to output node", { x: position.x - 50, y: position.y - 35 }, "error");
+                    }
+                    else {
+                        this.currentConnection.setSource(panel, 0);
+                        Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting source");
+                        successful = true;
+                    }
+                }
+                // If successful, finish held connection
+                if (successful) {
+                    this.connections.push(this.currentConnection);
+                    this.currentConnection = null;
+                    this.onHeldConnectionFinish();
+                }
+                // Otherwise remove the connection
+                else {
+                    this.currentConnection.remove();
+                    this.currentConnection = null;
+                }
+            }
+        }
+        onBackgroundMouseDown(e) {
+            if (this.currentConnection) {
+                // Open panel creator
+                if (!this.panelCreator.isVisible) {
+                    this.panelCreator.open(e.clientX, e.clientY);
+                    // Set position with hardcoded offsets
+                    if (this.currentConnection.sourcePanel) {
+                        this.currentConnection.setTargetPosition(e.clientX, e.clientY + 5);
+                    }
+                    else {
+                        this.currentConnection.setTargetPosition(e.clientX + 100, e.clientY + 5);
+                    }
+                }
+                // Close held connection
+                else {
+                    this.panelCreator.close();
+                    this.currentConnection.remove();
+                    this.currentConnection = null;
+                }
+            }
+        }
+        onMouseMove(e) {
+            if (this.currentConnection && !this.panelCreator.isVisible) {
+                this.currentConnection.setTargetPosition(e.clientX, e.clientY);
+            }
+        }
+    }
+    Panel_1.WorldManager = WorldManager;
+})(Panel || (Panel = {}));
 (function () {
+    // Setup globals
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.contentContainer = document.querySelector(".content-container");
     Globals.contentBackground = Globals.contentContainer.querySelector(".background");
     Globals.svgContainer = document.querySelector(".svg-container");
-    Globals.globalEventBus = new Util.PriorityEventBus();
-    Globals.panelCreator = new Main.PanelCreator();
-    Globals.scroller = new Main.Scroller(Globals.mainContainer, Globals.contentBackground);
-    Globals.notificationManager = new Main.NotificationManager(document.querySelector(".notification-container"));
-    Globals.PanelManager = new Main.PanelManager();
-    Globals.contentBackground.addEventListener("mousedown", (e) => Globals.globalEventBus.emit("backgroundmousedown", e));
-    const p1 = new Main.Panel(new Main.HardcodedEntity([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text");
-    const p2 = new Main.Panel(new Main.HardcodedEntity([
+    Globals.worldManager = new Panel.WorldManager();
+    Globals.scroller = new Util.ElementScroller(Globals.mainContainer, Globals.contentBackground);
+    Globals.notificationManager = new Util.NotificationManager(document.querySelector(".notification-container"));
+    // Setup preset world state
+    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text"));
+    const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([
         Cipher.Message.parseFromString("0123232433422323"),
         Cipher.Message.parseFromString("45645632234456454"),
         Cipher.Message.parseFromString("13231212323232"),
-    ]), "Text");
-    const p3 = new Main.Panel(new Main.PreviewMessagesEntity(), "Preview");
-    const p6 = new Main.Panel(new Main.PreviewMessagesEntity(), "Preview");
-    const p4 = new Main.Panel(new Main.SplitMessagesEntity(), "Split");
-    const p5 = new Main.Panel(new Main.HardcodedEntity([new Cipher.Message(["1", "23", "54", "4"])]), "Text");
-    const p7 = new Main.Panel(new Main.BlockEntity(), "Block");
+    ]), "Text"));
+    const p3 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
+    const p6 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
+    const p4 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.SplitMessagesPanelContent(), "Split"));
+    const p5 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([new Cipher.Message(["1", "23", "54", "4"])]), "Text"));
+    const p7 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.BlockPanelContent(), "Block"));
     p1.setPosition(70, 100);
     p2.setPosition(40, 350);
     p5.setPosition(40, 600);
@@ -977,5 +1075,5 @@ var Main;
     p6.setPosition(550, 300);
     p4.setPosition(580, 450);
     p7.setPosition(550, 600);
-    Globals.PanelManager.connect(p1, 0, p3, 0);
+    Globals.worldManager.connectPanels(p1, 0, p3, 0);
 })();
