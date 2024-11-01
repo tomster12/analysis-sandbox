@@ -145,10 +145,10 @@ namespace Util {
             return this.position;
         }
 
-        setPosition(x: number, y: number) {
-            this.element.style.left = x + "px";
-            this.element.style.top = y + "px";
-            this.position = { x, y };
+        setPosition(worldX: number, worldY: number) {
+            this.element.style.left = worldX + "px";
+            this.element.style.top = worldY + "px";
+            this.position = { x: worldX, y: worldY };
             this.events.emit("move", this.position);
         }
 
@@ -487,8 +487,8 @@ namespace Panel {
         targetPanel: Panel;
         sourceIndex: number;
         targetIndex: number;
-        sourceScreenPos: { x: number; y: number };
-        targetScreenPos: { x: number; y: number };
+        sourceWorldPos: { x: number; y: number };
+        targetWorldPos: { x: number; y: number };
 
         constructor() {
             this.element = document.createElementNS("http://www.w3.org/2000/svg", "path");
@@ -509,7 +509,7 @@ namespace Panel {
             if (this.targetPanel) this.establish();
 
             this.recalculateSourcePos();
-            if (!this.targetScreenPos) this.targetScreenPos = this.sourceScreenPos;
+            if (!this.targetWorldPos) this.targetWorldPos = this.sourceWorldPos;
             if (!this.isConnected) document.body.style.cursor = "pointer";
             this.updateElement();
         }
@@ -527,7 +527,7 @@ namespace Panel {
             if (this.sourcePanel) this.establish();
 
             this.recalculateTargetPos();
-            if (!this.sourceScreenPos) this.sourceScreenPos = this.targetScreenPos;
+            if (!this.sourceWorldPos) this.sourceWorldPos = this.targetWorldPos;
             if (!this.isConnected) document.body.style.cursor = "pointer";
             this.updateElement();
         }
@@ -628,35 +628,35 @@ namespace Panel {
 
         recalculateSourcePos() {
             if (!this.sourcePanel) return;
-            const sourceRect = this.sourcePanel.nodes.output[this.sourceIndex].getIndicatorRect();
-            this.sourceScreenPos = {
-                x: sourceRect.left + sourceRect.width / 2 + Globals.scroller.scroll.x,
-                y: sourceRect.top + sourceRect.height / 2 + Globals.scroller.scroll.y,
+            const sourceScreenRect = this.sourcePanel.nodes.output[this.sourceIndex].getIndicatorRect();
+            this.sourceWorldPos = {
+                x: sourceScreenRect.left + sourceScreenRect.width / 2 + Globals.scroller.scroll.x,
+                y: sourceScreenRect.top + sourceScreenRect.height / 2 + Globals.scroller.scroll.y,
             };
         }
 
         recalculateTargetPos() {
             if (!this.targetPanel) return;
-            const targetRect = this.targetPanel.nodes.input[this.targetIndex].getIndicatorRect();
-            this.targetScreenPos = {
-                x: targetRect.left + targetRect.width / 2 + Globals.scroller.scroll.x,
-                y: targetRect.top + targetRect.height / 2 + Globals.scroller.scroll.y,
+            const targetScreenRect = this.targetPanel.nodes.input[this.targetIndex].getIndicatorRect();
+            this.targetWorldPos = {
+                x: targetScreenRect.left + targetScreenRect.width / 2 + Globals.scroller.scroll.x,
+                y: targetScreenRect.top + targetScreenRect.height / 2 + Globals.scroller.scroll.y,
             };
         }
 
         updateElement() {
-            const dx = this.targetScreenPos.x - this.sourceScreenPos.x;
-            const dy = this.targetScreenPos.y - this.sourceScreenPos.y;
+            const dx = this.targetWorldPos.x - this.sourceWorldPos.x;
+            const dy = this.targetWorldPos.y - this.sourceWorldPos.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
 
             // Interpolate from 0 -> 60 with distance 40 -> 100
             const controlOffsetT = Math.min(1, Math.max(0, (dist - 30) / (120 - 30)));
             const controlOffset = Easing.easeOutQuad(controlOffsetT) * 60;
 
-            const p1X = this.sourceScreenPos.x;
-            const p1Y = this.sourceScreenPos.y;
-            const p2X = this.targetScreenPos.x;
-            const p2Y = this.targetScreenPos.y;
+            const p1X = this.sourceWorldPos.x;
+            const p1Y = this.sourceWorldPos.y;
+            const p2X = this.targetWorldPos.x;
+            const p2Y = this.targetWorldPos.y;
             const c1X = p1X + controlOffset;
             const c1Y = p1Y;
             const c2X = p2X - controlOffset;
@@ -671,7 +671,7 @@ namespace Panel {
         onSourceNodesUpdated() {
             // Check source index is still within range
             if (this.sourceIndex >= this.sourcePanel.nodes.output.length) {
-                Globals.notificationManager.notify("Source node removed", this.sourceScreenPos, "warning");
+                Globals.notificationManager.notify("Source node removed", this.sourceWorldPos, "warning");
                 this.remove();
                 return;
             }
@@ -683,7 +683,7 @@ namespace Panel {
         onTargetNodesUpdated() {
             // Check target index is still within range
             if (this.targetIndex >= this.targetPanel.nodes.input.length) {
-                Globals.notificationManager.notify("Target node removed", this.targetScreenPos, "warning");
+                Globals.notificationManager.notify("Target node removed", this.targetWorldPos, "warning");
                 this.remove();
                 return;
             }
@@ -692,12 +692,12 @@ namespace Panel {
             this.updateElement();
         }
 
-        setTargetPosition(x: number, y: number) {
+        setForcedWorldPosition(worldX: number, worldY: number) {
             // Stop caring about the set position once already connected
             if (this.isConnected) throw new Error("Cannot set target position of connected connection");
-            if (!this.sourcePanel) this.sourceScreenPos = { x, y };
+            if (!this.sourcePanel) this.sourceWorldPos = { x: worldX, y: worldY };
             else this.recalculateSourcePos();
-            if (!this.targetPanel) this.targetScreenPos = { x, y };
+            if (!this.targetPanel) this.targetWorldPos = { x: worldX, y: worldY };
             else this.recalculateTargetPos();
             this.updateElement();
         }
@@ -924,9 +924,9 @@ namespace Panel {
             this.element.classList.toggle("visible", isVisible);
         }
 
-        open(x: number, y: number) {
+        open(worldX: number, worldY: number) {
             this.setVisible(true);
-            this.setPosition(x, y);
+            this.setPosition(worldX, worldY);
         }
 
         close() {
@@ -1129,46 +1129,47 @@ namespace Panel {
                     }
                 }
 
-                // If successful, finish held connection
-                if (successful) {
-                    this.connections.push(this.currentConnection);
-                    this.currentConnection = null;
-                    this.onHeldConnectionFinish();
-                }
-
-                // Otherwise remove the connection
-                else {
-                    this.currentConnection.remove();
-                    this.currentConnection = null;
-                }
+                // Handle finishing the connection
+                if (successful) this.connections.push(this.currentConnection);
+                else this.currentConnection.remove();
+                this.currentConnection = null;
+                this.onHeldConnectionFinish();
             }
         }
 
         onBackgroundMouseDown(e: MouseEvent) {
+            let worldX = e.clientX + Globals.scroller.scroll.x;
+            let worldY = e.clientY + Globals.scroller.scroll.y;
+
             if (this.currentConnection) {
                 // Open panel creator
                 if (!this.panelCreator.isVisible) {
-                    this.panelCreator.open(e.clientX, e.clientY);
+                    this.panelCreator.open(worldX, worldY);
 
                     // Set position with hardcoded offsets
                     if (this.currentConnection.sourcePanel) {
-                        this.currentConnection.setTargetPosition(e.clientX, e.clientY + 5);
+                        this.currentConnection.setForcedWorldPosition(worldX, worldY + 5);
                     } else {
-                        this.currentConnection.setTargetPosition(e.clientX + 100, e.clientY + 5);
+                        this.currentConnection.setForcedWorldPosition(worldX + 110, worldY + 5);
                     }
                 }
+
                 // Close held connection
                 else {
                     this.panelCreator.close();
                     this.currentConnection.remove();
                     this.currentConnection = null;
+                    this.onHeldConnectionFinish();
                 }
             }
         }
 
         onMouseMove(e: MouseEvent) {
+            let scrolledX = e.clientX + Globals.scroller.scroll.x;
+            let scrolledY = e.clientY + Globals.scroller.scroll.y;
+
             if (this.currentConnection && !this.panelCreator.isVisible) {
-                this.currentConnection.setTargetPosition(e.clientX, e.clientY);
+                this.currentConnection.setForcedWorldPosition(scrolledX, scrolledY);
             }
         }
     }
