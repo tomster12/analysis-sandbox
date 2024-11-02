@@ -27,15 +27,35 @@ namespace Util {
         if (!condition) throw new Error(message);
     }
 
-    /** Check if a value is Cipher.Message[]. */
-    export function isCipherMessageArray(value: any): value is Cipher.Message[] {
-        return value instanceof Array && value.every((v) => v instanceof Cipher.Message);
+    /** Check if a value is string[][]. */
+    export function instanceOfString2D(value: any) {
+        if (!(value instanceof Array)) return false;
+        for (let i = 0; i < value.length; i++) {
+            if (!(value[i] instanceof Array)) return false;
+            for (let j = 0; j < value[i].length; j++) {
+                if (!(typeof value[i][j] == "string")) return false;
+            }
+        }
+        return true;
+    }
+
+    /** Compare 2 string[][] */
+    export function compareString2D(a: string[][], b: string[][]) {
+        if ((a == null) !== (b == null)) return false;
+        if (a.length != b.length) return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i].length != b[i].length) return false;
+            for (let j = 0; j < a[i].length; j++) {
+                if (a[i][j] != b[i][j]) return false;
+            }
+        }
+        return true;
     }
 
     /** Convert a message into a consistent visual element. */
-    export function createMessageElement(message: Cipher.Message): HTMLElement {
+    export function createMessageElement(message: string[]): HTMLElement {
         const parent = Util.createHTMLElement(`<div class="message"></div>`);
-        for (const letter of message.letters) {
+        for (const letter of message) {
             const el = Util.createHTMLElement(`<span>${letter}</span>`);
 
             // Set font size based on letter length
@@ -259,28 +279,15 @@ namespace Util {
 }
 
 namespace Cipher {
-    /** Generic message class used by cryptography. */
-    export class Message {
-        letters: string[];
-
-        constructor(letters: string[]) {
-            this.letters = letters;
-        }
-
-        static parseFromString(text: string, delimeter = ""): Message {
-            return new Message(text.split(delimeter));
-        }
-
-        equals(other: Message): boolean {
-            return this.letters.length === other.letters.length && this.letters.every((v, i) => v === other.letters[i]);
-        }
+    export function parseMessage(text: string, delimeter = ""): string[] {
+        return text.split(delimeter);
     }
 }
 
 namespace Panel {
-    export type ValueType = Cipher.Message[];
+    export type ValueType = string[][];
 
-    export type ValueTypeString = "Message[]" | "None";
+    export type ValueTypeString = "string[][]" | "None";
 
     export function isCompatibleValueType(sourceType: ValueTypeString, targetType: ValueTypeString): boolean {
         if (sourceType == targetType) return true;
@@ -292,8 +299,8 @@ namespace Panel {
     /** Content which can be placed inside a Panel. */
     export interface IPanelContent extends Util.ElementProxy {
         setPanel(panel: Panel): void;
-        setInput(index: number, value: Cipher.Message[]): void;
-        getOutput(index: number): Cipher.Message[];
+        setInput(index: number, value: string[][]): void;
+        getOutput(index: number): string[][];
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString;
         onConnectionDisconnect(type: PanelNodeType, index: number): void;
     }
@@ -706,14 +713,14 @@ namespace Panel {
     /** Panel content, displays messages. */
     export class TextPanelContent extends Util.ElementProxy implements IPanelContent {
         panel: Panel;
-        messages: Cipher.Message[];
+        messages: string[][];
 
-        constructor(messages: Cipher.Message[]) {
+        constructor(messages: string[][]) {
             super(`<div class="hardcoded-panel-content"></div>`);
 
             this.messages = messages;
             this.element.innerHTML = "";
-            this.messages.forEach((message: Cipher.Message) => {
+            this.messages.forEach((message: string[]) => {
                 this.element.appendChild(Util.createMessageElement(message));
             });
         }
@@ -728,13 +735,13 @@ namespace Panel {
             Util.assert(false, "TextEntity does not have any inputs");
         }
 
-        getOutput(index: number): Cipher.Message[] {
+        getOutput(index: number): string[][] {
             Util.assert(index == 0, "TextEntity only has one output");
             return this.messages;
         }
 
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
-            if (type == "output" && index == 0) return "Message[]";
+            if (type == "output" && index == 0) return "string[][]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
         }
 
@@ -744,7 +751,7 @@ namespace Panel {
     /** Panel content, previews messages. */
     export class PreviewMessagesPanelContent extends Util.ElementProxy implements IPanelContent {
         panel: Panel;
-        messages: Cipher.Message[];
+        messages: string[][];
 
         constructor() {
             super(`<div class="preview-messages-panel-content empty"></div>`);
@@ -762,19 +769,19 @@ namespace Panel {
 
             // Exit early with notification if the value is invalid
             // This shouldn't be reached due to connection.canConnectWith()
-            if (!Util.isCipherMessageArray(value)) {
+            if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
 
             // Exit early if the value is the same
-            if (this.messages && this.messages.length === value.length && this.messages.every((m, i) => m.equals(value[i]))) return;
+            if (Util.compareString2D(this.messages, value)) return;
 
             // Set message and visual
             this.messages = value;
             this.element.innerHTML = "";
-            this.messages.forEach((message: Cipher.Message) => {
+            this.messages.forEach((message: string[]) => {
                 this.element.appendChild(Util.createMessageElement(message));
             });
             if (this.messages.length === 0) this.element.classList.add("empty");
@@ -785,14 +792,14 @@ namespace Panel {
             this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
         }
 
-        getOutput(index: number): Cipher.Message[] {
+        getOutput(index: number): string[][] {
             Util.assert(index == 0, "TextEntity only has one output");
             return this.messages;
         }
 
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
-            if (type == "input" && index == 0) return "Message[]";
-            if (type == "output" && index == 0) return "Message[]";
+            if (type == "input" && index == 0) return "string[][]";
+            if (type == "output" && index == 0) return "string[][]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
         }
 
@@ -805,7 +812,7 @@ namespace Panel {
     export class SplitMessagesPanelContent extends Util.ElementProxy implements IPanelContent {
         elementCount: HTMLElement;
         panel: Panel;
-        messages: Cipher.Message[];
+        messages: string[][];
 
         constructor() {
             super(`<div class="split-messages-panel-content"><p>0</p></div>`);
@@ -823,14 +830,14 @@ namespace Panel {
 
             // Exit early with notification if the value is invalid
             // This shouldn't be reached due to connection.canConnectWith()
-            if (!Util.isCipherMessageArray(value)) {
+            if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
 
             // Exit early if the value is the same
-            if (this.messages && this.messages.length === value.length && this.messages.every((m, i) => m.equals(value[i]))) return;
+            if (Util.compareString2D(this.messages, value)) return;
 
             // Set message and visual
             this.messages = value;
@@ -846,15 +853,15 @@ namespace Panel {
             for (let i = 0; i < this.messages.length; i++) this.panel.events.emit("outputUpdated", i, this.getOutput(i));
         }
 
-        getOutput(index: number): Cipher.Message[] {
+        getOutput(index: number): string[][] {
             Util.assert(index < this.messages.length, "Invalid output index");
 
             return [this.messages[index]];
         }
 
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
-            if (type == "input" && index == 0) return "Message[]";
-            if (type == "output" && index >= 0 && index < this.messages.length) return "Message[]";
+            if (type == "input" && index == 0) return "string[][]";
+            if (type == "output" && index >= 0 && index < this.messages.length) return "string[][]";
 
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on SplitMessagesEntity`);
         }
@@ -882,7 +889,7 @@ namespace Panel {
             Util.assert(false, "BlockEntity should never receive input");
         }
 
-        getOutput(index: number): Cipher.Message[] {
+        getOutput(index: number): string[][] {
             Util.assert(false, "BlockEntity does not have any outputs");
             return [];
         }
@@ -1185,32 +1192,24 @@ namespace Panel {
 
     // Setup preset world state
     const p1 = Globals.worldManager.addPanel(
-        new Panel.Panel(new Panel.TextPanelContent([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text")
+        new Panel.Panel(new Panel.TextPanelContent([Cipher.parseMessage("Hello World"), Cipher.parseMessage("And Again")]), "Text")
     );
 
     const p2 = Globals.worldManager.addPanel(
         new Panel.Panel(
             new Panel.TextPanelContent([
-                Cipher.Message.parseFromString("0123232433422323"),
-                Cipher.Message.parseFromString("45645632234456454"),
-                Cipher.Message.parseFromString("13231212323232"),
+                Cipher.parseMessage("0123232433422323"),
+                Cipher.parseMessage("45645632234456454"),
+                Cipher.parseMessage("13231212323232"),
             ]),
             "Text"
         )
     );
     const p3 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
-    const p6 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
-    const p4 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.SplitMessagesPanelContent(), "Split"));
-    const p5 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([new Cipher.Message(["1", "23", "54", "4"])]), "Text"));
-    const p7 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.BlockPanelContent(), "Block"));
 
     p1.setPosition(70, 100);
     p2.setPosition(40, 350);
-    p5.setPosition(40, 600);
     p3.setPosition(550, 150);
-    p6.setPosition(550, 300);
-    p4.setPosition(580, 450);
-    p7.setPosition(550, 600);
 
     Globals.worldManager.connectPanels(p1, 0, p3, 0);
 })();

@@ -23,15 +23,42 @@ var Util;
             throw new Error(message);
     }
     Util.assert = assert;
-    /** Check if a value is Cipher.Message[]. */
-    function isCipherMessageArray(value) {
-        return value instanceof Array && value.every((v) => v instanceof Cipher.Message);
+    /** Check if a value is string[][]. */
+    function instanceOfString2D(value) {
+        if (!(value instanceof Array))
+            return false;
+        for (let i = 0; i < value.length; i++) {
+            if (!(value[i] instanceof Array))
+                return false;
+            for (let j = 0; j < value[i].length; j++) {
+                if (!(typeof value[i][j] == "string"))
+                    return false;
+            }
+        }
+        return true;
     }
-    Util.isCipherMessageArray = isCipherMessageArray;
+    Util.instanceOfString2D = instanceOfString2D;
+    /** Compare 2 string[][] */
+    function compareString2D(a, b) {
+        if ((a == null) !== (b == null))
+            return false;
+        if (a.length != b.length)
+            return false;
+        for (let i = 0; i < a.length; i++) {
+            if (a[i].length != b[i].length)
+                return false;
+            for (let j = 0; j < a[i].length; j++) {
+                if (a[i][j] != b[i][j])
+                    return false;
+            }
+        }
+        return true;
+    }
+    Util.compareString2D = compareString2D;
     /** Convert a message into a consistent visual element. */
     function createMessageElement(message) {
         const parent = Util.createHTMLElement(`<div class="message"></div>`);
-        for (const letter of message.letters) {
+        for (const letter of message) {
             const el = Util.createHTMLElement(`<span>${letter}</span>`);
             // Set font size based on letter length
             el.style.fontSize = `${0.7 - (letter.length - 1) * 0.15}rem`;
@@ -237,20 +264,10 @@ var Util;
 })(Util || (Util = {}));
 var Cipher;
 (function (Cipher) {
-    /** Generic message class used by cryptography. */
-    class Message {
-        letters;
-        constructor(letters) {
-            this.letters = letters;
-        }
-        static parseFromString(text, delimeter = "") {
-            return new Message(text.split(delimeter));
-        }
-        equals(other) {
-            return this.letters.length === other.letters.length && this.letters.every((v, i) => v === other.letters[i]);
-        }
+    function parseMessage(text, delimeter = "") {
+        return text.split(delimeter);
     }
-    Cipher.Message = Message;
+    Cipher.parseMessage = parseMessage;
 })(Cipher || (Cipher = {}));
 var Panel;
 (function (Panel_1) {
@@ -655,7 +672,7 @@ var Panel;
         }
         getNodeValueType(type, index) {
             if (type == "output" && index == 0)
-                return "Message[]";
+                return "string[][]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
         }
         onConnectionDisconnect(type, index) { }
@@ -678,13 +695,13 @@ var Panel;
             Util.assert(index == 0, "TextEntity only has one input");
             // Exit early with notification if the value is invalid
             // This shouldn't be reached due to connection.canConnectWith()
-            if (!Util.isCipherMessageArray(value)) {
+            if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
             // Exit early if the value is the same
-            if (this.messages && this.messages.length === value.length && this.messages.every((m, i) => m.equals(value[i])))
+            if (Util.compareString2D(this.messages, value))
                 return;
             // Set message and visual
             this.messages = value;
@@ -706,9 +723,9 @@ var Panel;
         }
         getNodeValueType(type, index) {
             if (type == "input" && index == 0)
-                return "Message[]";
+                return "string[][]";
             if (type == "output" && index == 0)
-                return "Message[]";
+                return "string[][]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
         }
         onConnectionDisconnect(type, index) {
@@ -735,13 +752,13 @@ var Panel;
             Util.assert(index == 0, "SplitTextEntity only has one input");
             // Exit early with notification if the value is invalid
             // This shouldn't be reached due to connection.canConnectWith()
-            if (!Util.isCipherMessageArray(value)) {
+            if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
             // Exit early if the value is the same
-            if (this.messages && this.messages.length === value.length && this.messages.every((m, i) => m.equals(value[i])))
+            if (Util.compareString2D(this.messages, value))
                 return;
             // Set message and visual
             this.messages = value;
@@ -762,9 +779,9 @@ var Panel;
         }
         getNodeValueType(type, index) {
             if (type == "input" && index == 0)
-                return "Message[]";
+                return "string[][]";
             if (type == "output" && index >= 0 && index < this.messages.length)
-                return "Message[]";
+                return "string[][]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on SplitMessagesEntity`);
         }
         onConnectionDisconnect(type, index) {
@@ -1059,23 +1076,15 @@ var Panel;
     Globals.scroller = new Util.ElementScroller(Globals.mainContainer, Globals.contentBackground);
     Globals.notificationManager = new Util.NotificationManager(document.querySelector(".notification-container"));
     // Setup preset world state
-    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([Cipher.Message.parseFromString("Hello World"), Cipher.Message.parseFromString("And Again")]), "Text"));
+    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([Cipher.parseMessage("Hello World"), Cipher.parseMessage("And Again")]), "Text"));
     const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([
-        Cipher.Message.parseFromString("0123232433422323"),
-        Cipher.Message.parseFromString("45645632234456454"),
-        Cipher.Message.parseFromString("13231212323232"),
+        Cipher.parseMessage("0123232433422323"),
+        Cipher.parseMessage("45645632234456454"),
+        Cipher.parseMessage("13231212323232"),
     ]), "Text"));
     const p3 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
-    const p6 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
-    const p4 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.SplitMessagesPanelContent(), "Split"));
-    const p5 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([new Cipher.Message(["1", "23", "54", "4"])]), "Text"));
-    const p7 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.BlockPanelContent(), "Block"));
     p1.setPosition(70, 100);
     p2.setPosition(40, 350);
-    p5.setPosition(40, 600);
     p3.setPosition(550, 150);
-    p6.setPosition(550, 300);
-    p4.setPosition(580, 450);
-    p7.setPosition(550, 600);
     Globals.worldManager.connectPanels(p1, 0, p3, 0);
 })();

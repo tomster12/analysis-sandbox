@@ -161,6 +161,10 @@
 
 /* ----------------------- */
 
+/* .panel is plain block with bar and body */
+/* .body flex:row with node sidebars and body */
+/* - node sidebars act as horizontal padding */
+
 .panel {
     --panel-border-radius: 0.2rem;
     --panel-close-border-radius: 0.15rem;
@@ -388,6 +392,11 @@
     flex-direction: row;
     align-items: center;
     gap: 0.1rem;
+    padding: 0.2rem;
+}
+
+.message:nth-child(even) {
+    background-color: #00000015;
 }
 
 .message span {
