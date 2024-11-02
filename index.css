@@ -229,12 +229,9 @@
 }
 
 .panel-body {
-    padding: var(--panel-content-padding) 0;
-    display: flex;
-    flex-direction: row;
-    justify-self: center;
+    padding: var(--panel-content-padding);
+    position: relative;
     overflow: visible;
-    align-items: stretch;
 }
 
 .panel-content {
@@ -245,22 +242,25 @@
 .panel-nodes {
     --indicator-size: 0.7rem;
 
-    position: relative;
-    width: var(--panel-content-padding);
+    position: absolute;
+    top: 0;
+    width: 0;
+    height: 100%;
     overflow: visible;
 
     display: flex;
     flex-direction: column;
     justify-content: center;
+    align-items: start;
     gap: 0.3rem;
 }
 
 .panel-nodes.input {
-    left: -0.9rem;
+    left: -0.3rem;
 }
 
 .panel-nodes.output {
-    right: -0.9rem;
+    right: -0.3rem;
 }
 
 .panel-node {
