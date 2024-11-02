@@ -966,24 +966,25 @@ var Panel;
             let panel;
             switch (type) {
                 case "Text":
-                    panel = this.addPanel(new Panel(new TextPanelContent([]), "Text")).setPosition(position.x, position.y);
+                    panel = this.addPanel(new Panel(new TextPanelContent([]), "Text"));
                     break;
                 case "Preview":
-                    panel = this.addPanel(new Panel(new PreviewMessagesPanelContent(), "Preview")).setPosition(position.x, position.y);
+                    panel = this.addPanel(new Panel(new PreviewMessagesPanelContent(), "Preview"));
                     break;
                 case "Split":
-                    panel = this.addPanel(new Panel(new SplitMessagesPanelContent(), "Split")).setPosition(position.x, position.y);
+                    panel = this.addPanel(new Panel(new SplitMessagesPanelContent(), "Split"));
                     break;
                 case "Block":
-                    panel = this.addPanel(new Panel(new BlockPanelContent(), "Block")).setPosition(position.x, position.y);
+                    panel = this.addPanel(new Panel(new BlockPanelContent(), "Block"));
                     break;
                 default:
                     throw new Error(`Unknown panel type ${type}`);
             }
+            panel.setPosition(position.x, position.y);
             // Try connect to new panel index 0
             if (this.currentConnection) {
                 let successful = false;
-                // Try connect to source
+                // Try connect to input node
                 if (this.currentConnection.sourcePanel) {
                     if (!this.currentConnection.canConnectWith(panel, "input", 0)) {
                         Globals.notificationManager.notify("Cannot connect to input node", { x: position.x - 50, y: position.y - 35 }, "error");
@@ -994,7 +995,7 @@ var Panel;
                         successful = true;
                     }
                 }
-                // Try connect to target
+                // Try connect to output node
                 else {
                     if (!this.currentConnection.canConnectWith(panel, "output", 0)) {
                         Globals.notificationManager.notify("Cannot connect to output node", { x: position.x - 50, y: position.y - 35 }, "error");
