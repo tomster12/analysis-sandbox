@@ -787,14 +787,12 @@ namespace Panel {
 
         getOutput(index: number): Cipher.Message[] {
             Util.assert(index == 0, "TextEntity only has one output");
-
             return this.messages;
         }
 
         getNodeValueType(type: PanelNodeType, index: number): ValueTypeString {
             if (type == "input" && index == 0) return "Message[]";
             if (type == "output" && index == 0) return "Message[]";
-
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
         }
 
