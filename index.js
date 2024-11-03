@@ -61,7 +61,9 @@ var Util;
         for (const letter of message) {
             const el = Util.createHTMLElement(`<span>${letter}</span>`);
             // Set font size based on letter length
-            el.style.fontSize = `${0.7 - (letter.length - 1) * 0.15}rem`;
+            let size = 0.7 - (letter.length - 1) * 0.15;
+            size = size < 0.2 ? 0.2 : size;
+            el.style.fontSize = `${size}rem`;
             parent.appendChild(el);
         }
         return parent;
@@ -657,6 +659,7 @@ var Panel;
             this.messages.forEach((message) => {
                 this.element.appendChild(Util.createMessageElement(message));
             });
+            this.element.classList.toggle("empty", this.messages.length === 0);
         }
         setPanel(panel) {
             this.panel = panel;
@@ -678,6 +681,64 @@ var Panel;
         onConnectionDisconnect(type, index) { }
     }
     Panel_1.TextPanelContent = TextPanelContent;
+    /** Panel content, takes user input. */
+    class UserInputContent extends Util.ElementProxy {
+        panel;
+        messages;
+        elementInput;
+        elementDelim;
+        constructor() {
+            super(`<div class="user-input-panel-content">
+                    <textarea type="text" class="user-input-input" contentEditable="true" placeholder="input..."></textarea>
+                    <div class="user-input-options">
+                        <p>Delimeter</p>
+                        <input class="user-input-delim" contentEditable="true"></input>
+                    </div>
+                </div>`);
+            this.messages = [];
+            this.elementInput = this.element.querySelector(".user-input-input");
+            this.elementDelim = this.element.querySelector(".user-input-delim");
+            this.elementInput.addEventListener("input", (e) => this.onInputChanged(e));
+            this.elementDelim.addEventListener("input", (e) => this.onDelimChanged(e));
+            // Reset height
+            this.elementInput.style.height = "";
+            this.elementInput.style.height = this.elementInput.scrollHeight + 3 + "px";
+        }
+        setPanel(panel) {
+            this.panel = panel;
+            this.panel.reinitializeNodes(0, 1);
+            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
+        }
+        setInput(_index, _value) {
+            Util.assert(false, "TextEntity does not have any inputs");
+        }
+        getOutput(index) {
+            Util.assert(index == 0, "TextEntity only has one output");
+            return this.messages;
+        }
+        getNodeValueType(type, index) {
+            if (type == "output" && index == 0)
+                return "string[][]";
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
+        }
+        onConnectionDisconnect(type, index) { }
+        onInputChanged(e) {
+            this.elementInput.style.height = "";
+            this.elementInput.style.height = this.elementInput.scrollHeight + 3 + "px";
+            this.updateOutput();
+        }
+        onDelimChanged(e) {
+            this.updateOutput();
+        }
+        updateOutput() {
+            const input = this.elementInput.value;
+            const delim = this.elementDelim.value;
+            let lines = input.split("\n");
+            this.messages = lines.map((l) => l.split(delim));
+            this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
+        }
+    }
+    Panel_1.UserInputContent = UserInputContent;
     /** Panel content, previews messages. */
     class PreviewMessagesPanelContent extends Util.ElementProxy {
         panel;
@@ -709,10 +770,7 @@ var Panel;
             this.messages.forEach((message) => {
                 this.element.appendChild(Util.createMessageElement(message));
             });
-            if (this.messages.length === 0)
-                this.element.classList.add("empty");
-            else
-                this.element.classList.remove("empty");
+            this.element.classList.toggle("empty", this.messages.length === 0);
             // Trigger events
             this.panel.events.emit("nodesUpdated");
             this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
@@ -754,6 +812,7 @@ var Panel;
             // This shouldn't be reached due to connection.canConnectWith()
             if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
+                console.log(value);
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
                 return;
             }
@@ -790,30 +849,6 @@ var Panel;
         }
     }
     Panel_1.SplitMessagesPanelContent = SplitMessagesPanelContent;
-    /** Panel content, debug block. */
-    class BlockPanelContent extends Util.ElementProxy {
-        panel;
-        constructor() {
-            super(`<div class="block-panel-content"></div>`);
-        }
-        setPanel(panel) {
-            this.panel = panel;
-            panel.reinitializeNodes(1, 0);
-            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
-        }
-        setInput(index, value) {
-            Util.assert(false, "BlockEntity should never receive input");
-        }
-        getOutput(index) {
-            Util.assert(false, "BlockEntity does not have any outputs");
-            return [];
-        }
-        getNodeValueType(type, index) {
-            return "None";
-        }
-        onConnectionDisconnect(type, index) { }
-    }
-    Panel_1.BlockPanelContent = BlockPanelContent;
     /** Handles creating new panels by dragging from the background. */
     class PanelCreator extends Util.ElementProxy {
         isVisible;
@@ -822,7 +857,7 @@ var Panel;
             this.setVisible(false);
             this.setPosition(0, 0);
             // Add buttons for each panel type
-            const buttonTypes = ["Text", "Preview", "Split", "Block"];
+            const buttonTypes = ["User Input", "Preview", "Split"];
             buttonTypes.forEach((type) => {
                 const button = Util.createHTMLElement(`<div class="panel-creator-button">${type}</div>`);
                 button.addEventListener("click", () => this.selectPanelType(type));
@@ -982,17 +1017,14 @@ var Panel;
             const position = this.panelCreator.getPosition();
             let panel;
             switch (type) {
-                case "Text":
-                    panel = this.addPanel(new Panel(new TextPanelContent([]), "Text"));
+                case "User Input":
+                    panel = this.addPanel(new Panel(new UserInputContent(), "User Input"));
                     break;
                 case "Preview":
                     panel = this.addPanel(new Panel(new PreviewMessagesPanelContent(), "Preview"));
                     break;
                 case "Split":
                     panel = this.addPanel(new Panel(new SplitMessagesPanelContent(), "Split"));
-                    break;
-                case "Block":
-                    panel = this.addPanel(new Panel(new BlockPanelContent(), "Block"));
                     break;
                 default:
                     throw new Error(`Unknown panel type ${type}`);
@@ -1077,14 +1109,8 @@ var Panel;
     Globals.notificationManager = new Util.NotificationManager(document.querySelector(".notification-container"));
     // Setup preset world state
     const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([Cipher.parseMessage("Hello World"), Cipher.parseMessage("And Again")]), "Text"));
-    const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.TextPanelContent([
-        Cipher.parseMessage("0123232433422323"),
-        Cipher.parseMessage("45645632234456454"),
-        Cipher.parseMessage("13231212323232"),
-    ]), "Text"));
-    const p3 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewMessagesPanelContent(), "Preview"));
-    p1.setPosition(70, 100);
-    p2.setPosition(40, 350);
-    p3.setPosition(550, 150);
-    Globals.worldManager.connectPanels(p1, 0, p3, 0);
+    const p4 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
+    p1.setPosition(35, 250);
+    p4.setPosition(50, 70);
+    // Globals.worldManager.connectPanels(p1, 0, p4, 0);
 })();
