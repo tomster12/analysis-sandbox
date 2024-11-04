@@ -1,10 +1,3 @@
-* {
-    margin: 0;
-    padding: 0;
-    box-sizing: border-box;
-    overflow: hidden;
-}
-
 @font-face {
     font-family: "Oxygen";
     src: url("assets/oxygen-regular.ttf");
@@ -18,7 +11,17 @@
 :root {
     font-family: "Oxygen";
     font-size: 20px;
-    color: rgb(16, 16, 16);
+    color: #101010;
+    --standard-border-radius: 0.2rem;
+    --message-padding: 0.2rem;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    user-select: none;
 }
 
 /* --------------------------------------------------- */
@@ -44,7 +47,6 @@
     background-image: url("assets/grid.png");
     background-size: 5rem;
     cursor: grab;
-    user-select: none;
 }
 
 .svg-container {
@@ -105,7 +107,6 @@
 
 .notification span {
     padding: 0.1rem 0.4rem 0.1rem 0.2rem;
-    font-size: 0.6rem;
     font-weight: 600;
     color: #282828;
 }
@@ -201,17 +202,13 @@
 /* - node sidebars act as horizontal padding */
 
 .panel {
-    --panel-border-radius: 0.2rem;
-    --panel-close-border-radius: 0.15rem;
-    --panel-content-padding: 0.4rem;
-    --panel-content-border-radius: 0.15rem;
+    --panel-content-padding: 0.6rem;
     display: inline-block;
     position: absolute;
     background-color: rgb(130, 130, 130);
     box-shadow: 0 0.2rem 0.7rem -0.2rem #1e1e1e;
     transition: box-shadow 0.15s;
-    border-radius: var(--panel-border-radius);
-    user-select: none;
+    border-radius: var(--standard-border-radius);
     overflow: visible;
 }
 
@@ -220,10 +217,11 @@
 }
 
 .panel-bar {
+    --panel-bar-height: 1.8rem;
     width: 100%;
-    height: 1.2rem;
+    height: var(--panel-bar-height);
     overflow: hidden;
-    border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
+    border-radius: var(--standard-border-radius) var(--standard-border-radius) 0 0;
     background-color: #e5e5e5;
     box-sizing: border-box;
     cursor: grab;
@@ -234,13 +232,14 @@
 
 .panel-bar-title {
     flex-grow: 1;
-    line-height: 1.2rem;
-    border-radius: var(--panel-border-radius) var(--panel-border-radius) 0 0;
+    border-radius: var(--standard-border-radius) var(--standard-border-radius) 0 0;
     transition: background-color 0.1s;
-    font-size: 0.8rem;
-    font-weight: 600;
     text-align: center;
     color: #282828;
+    padding: 0.1rem 0.65rem;
+    font-size: 1.2rem;
+    font-weight: 600;
+    line-height: 1.5rem;
 }
 
 .panel-bar-title:hover {
@@ -248,14 +247,14 @@
 }
 
 .panel-bar-close {
-    width: 1.2rem;
-    height: 1.2rem;
+    width: var(--panel-bar-height);
+    height: var(--panel-bar-height);
     border-radius: 0px var(--panel-close-border-radius) 0px 0px;
     transition: background-color 0.1s;
     background-color: #d55e5e;
     cursor: pointer;
-    content: url("assets/close.png");
-    padding: 0.28rem;
+    content: url("assets/cross-light.png");
+    padding: 0.4rem;
     cursor: pointer;
 }
 
@@ -271,7 +270,7 @@
 
 .panel-content {
     flex-grow: 1;
-    border-radius: var(--panel-content-border-radius);
+    border-radius: var(--standard-border-radius);
 }
 
 .panel-nodes {
@@ -353,7 +352,6 @@
     transform: translateY(-50%);
     padding: 0.2rem;
     border-radius: 0.3rem;
-    font-size: 0.7rem;
     background-color: transparent;
     color: transparent;
     white-space: nowrap;
@@ -392,7 +390,7 @@
     display: none;
     background-color: rgba(129, 129, 129, 0.437);
     border: 0.1rem solid rgba(129, 129, 129, 0.437);
-    border-radius: 0.2rem;
+    border-radius: var(--standard-border-radius);
     flex-direction: column;
     gap: 0.4rem;
     padding: 0.4rem;
@@ -403,10 +401,9 @@
     height: 1.2rem;
     line-height: 1.2rem;
     background-color: #e5e5e5;
-    border-radius: 0.2rem;
+    border-radius: var(--standard-border-radius);
     cursor: pointer;
     text-align: center;
-    font-size: 0.8rem;
     font-weight: 600;
     color: #282828;
 }
@@ -421,35 +418,47 @@
 
 /* ----------------------- */
 
+.message-number {
+    flex-shrink: 0;
+    width: 1.4rem;
+    padding: var(--message-padding) 0;
+    border-right: 0.1rem solid #d6d6d6;
+    color: #5d5d5d;
+    text-align: center;
+    font-family: "Cousine";
+}
+
+/* ----------------------- */
+
 .message {
-    user-select: text;
+    display: flex;
+    flex-direction: row;
+}
+
+.message-content {
+    height: fit-content;
+    gap: var(--message-padding);
+    padding: var(--message-padding);
     display: flex;
     flex-direction: row;
     align-items: center;
-    gap: 0.15rem;
-    padding: 0.25rem;
 }
 
-.message:nth-child(even) {
-    background-color: #00000015;
-}
-
-.message span {
-    width: 1rem;
-    height: 1rem;
-    background-color: #cacaca;
-    border-radius: 0.1rem;
+.message-content span {
+    width: 1.2rem;
+    height: 1.2rem;
+    background-color: #e3e3e3;
     transition: background-color 0.1s;
-    user-select: none;
-
-    font-family: "Cousine";
+    border-radius: 0.1rem;
     overflow: hidden;
     white-space: nowrap;
+    user-select: text;
     text-align: center;
-    line-height: 1.1rem;
+    align-content: center;
+    font-family: "Cousine";
 }
 
-.message span:hover {
+.message-content span:hover {
     background-color: #bdbdbd;
 }
 
@@ -474,40 +483,73 @@
 /* ----------------------- */
 
 .user-input-panel-content {
-    width: 15rem;
     height: 100%;
-    font-size: 0.7rem;
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
+    gap: var(--panel-content-padding);
 }
 
-.user-input-input-container {
-    border-radius: 0.2rem;
-}
-
-.user-input-input-container .scrollable-wrapper-thumb {
-    border-radius: 0.2rem;
-}
-
-.user-input-input {
-    white-space: pre;
-    width: fit-content;
+.user-input-messages {
     min-width: 100%;
-    padding: 0.3rem;
+    border-radius: var(--standard-border-radius);
+}
+
+.user-input-add-message {
+    padding: 0.1rem;
+    background-color: #d6d6d6;
+    cursor: pointer;
+    text-align: center;
+    font-weight: bold;
+}
+
+.user-input-add-message:hover {
+    background-color: #e6e6e6;
+}
+
+.user-input-message {
+    display: flex;
     background-color: white;
-    line-height: 1.1rem;
-    border: none;
+    flex-direction: row;
+}
+
+.user-input-message-input {
+    padding: var(--message-padding);
+    white-space: pre-wrap;
+    cursor: text;
+    flex-grow: 1;
+    font-family: "Cousine";
+    word-wrap: break-word;
+    word-break: break-word;
+    user-select: text;
+}
+
+.user-input-message-input div {
+    user-select: text;
+}
+
+.user-input-message-input:focus {
     outline: none;
 }
 
-.user-input-input:focus {
-    outline: none;
+.user-input-message-remove {
+    padding: 0.3rem 0.2rem;
+    cursor: pointer;
+    display: flex;
+}
+
+.user-input-message-remove img {
+    width: 0.8rem;
+    height: 0.8rem;
+    content: url("assets/cross-dark.png");
+}
+
+.user-input-message-remove:hover {
+    background-color: #ececec;
 }
 
 .user-input-options {
     padding: 0.3rem;
-    border-radius: 0.2rem;
+    border-radius: var(--standard-border-radius);
     background-color: #5c5c5c;
     display: flex;
     flex-direction: row;
@@ -521,16 +563,23 @@
 .user-input-delim {
     padding: 0.3rem;
     background-color: white;
-    border-radius: 0.2rem;
-    line-height: 1.1rem;
+    border-radius: var(--standard-border-radius);
     border: none;
     outline: none;
-    width: 1.4rem;
-    height: 1.2rem;
+    width: 1.8rem;
+    height: 1.6rem;
+    font-family: Cousine;
+    font-size: 1rem;
 }
 
 .user-input-delim:focus {
     outline: none;
+}
+
+.user-input-message:not(:last-child) .message-number,
+.user-input-message:not(:last-child) .user-input-message-input,
+.user-input-message:not(:last-child) .user-input-message-remove {
+    padding-bottom: 0;
 }
 
 /* ----------------------- */
@@ -545,7 +594,7 @@
 }
 
 .split-messages-panel-content p {
-    font-size: 1.2rem;
+    font-size: 1.5rem;
     color: #2e2e2e;
 }
 

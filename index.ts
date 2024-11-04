@@ -53,18 +53,24 @@ namespace Util {
     }
 
     /** Convert a message into a consistent visual element. */
-    export function createMessageElement(message: string[]): HTMLElement {
-        const parent = Util.createHTMLElement(`<div class="message"></div>`);
+    export function createMessageElement(message: string[], num: number): HTMLElement {
+        const parent = Util.createHTMLElement(`<div class="message">
+                <div class="message-number">${num}</div>
+                <div class="message-content"></div>
+            </div>`);
+        const content = parent.querySelector(".message-content");
+
         for (const letter of message) {
             const el = Util.createHTMLElement(`<span>${letter}</span>`);
 
             // Set font size based on letter length
-            let size = 0.7 - (letter.length - 1) * 0.15;
+            let size = 1 - (letter.length - 1) * 0.25;
             size = size < 0.2 ? 0.2 : size;
             el.style.fontSize = `${size}rem`;
 
-            parent.appendChild(el);
+            content.appendChild(el);
         }
+
         return parent;
     }
 
@@ -796,9 +802,9 @@ namespace Panel {
 
             this.messages = messages;
             this.element.innerHTML = "";
-            this.messages.forEach((message: string[]) => {
-                this.element.appendChild(Util.createMessageElement(message));
-            });
+            for (let i = 0; i < this.messages.length; i++) {
+                this.element.appendChild(Util.createMessageElement(this.messages[i], i + 1));
+            }
 
             this.element.classList.toggle("empty", this.messages.length === 0);
         }
@@ -829,42 +835,84 @@ namespace Panel {
     /** Panel content, takes user input. */
     export class UserInputContent extends Util.ElementProxy implements IPanelContent {
         panel: Panel;
-        messages: string[][];
-        elementInputContainer: HTMLInputElement;
-        elementInputScrollable: Util.ScrollableWrapper;
-        elementInput: HTMLInputElement;
+        elementMessagesContainer: HTMLElement;
+        elementAddMessage: HTMLElement;
         elementDelim: HTMLInputElement;
+        elementMessages: { message: HTMLElement; input: HTMLElement }[];
+        messages: string[][];
 
         constructor() {
             super(`<div class="user-input-panel-content">
-                    <div class="user-input-input-container"></div>
+                    <div class="user-input-messages">
+                        <div class="user-input-messages-container"></div>
+                        <div class="user-input-add-message">+</div>
+                    </div>
                     <div class="user-input-options">
                         <p>Delimeter</p>
                         <input class="user-input-delim" contentEditable="true"></input>
                     </div>
                 </div>`);
-
-            this.messages = [];
-            this.elementInputContainer = this.element.querySelector(".user-input-input-container");
+            this.elementMessagesContainer = this.element.querySelector(".user-input-messages-container");
+            this.elementAddMessage = this.element.querySelector(".user-input-add-message");
             this.elementDelim = this.element.querySelector(".user-input-delim");
+            this.elementMessages = [];
+            this.messages = [];
 
-            // Create input element inside a scrollable div
-            this.elementInput = Util.createHTMLElement(`<div type="text" class="user-input-input" contentEditable="true"></div>`) as HTMLInputElement;
-            this.elementInputScrollable = new Util.ScrollableWrapper();
-            this.elementInputScrollable.addContent(this.elementInput);
-            this.elementInputContainer.appendChild(this.elementInputScrollable.getHTMLElement());
-
-            // Setup event listeners
-            this.elementInput.addEventListener("input", (e) => this.onInputChanged(e));
+            this.elementAddMessage.addEventListener("click", () => this.addMessage());
             this.elementDelim.addEventListener("input", (e) => this.onDelimChanged(e));
 
-            // Reset height
-            this.elementInput.style.height = "";
-            this.elementInput.style.height = this.elementInput.scrollHeight + 3 + "px";
+            this.addMessage();
+        }
 
-            // Debug init with some value
-            this.elementInput.textContent = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-            this.elementDelim.value = "";
+        addMessage() {
+            // Add new message input
+            const index = this.elementMessages.length;
+            const elementMessage = Util.createHTMLElement(`
+                <div class="user-input-message">
+                    <div class="message-number">${index + 1}</div>
+                    <div class="user-input-message-input" contentEditable="true"></div>
+                    <div class="user-input-message-remove"><img></img></div>
+                </div>`);
+            const elementMessageInput = elementMessage.querySelector(".user-input-message-input") as HTMLElement;
+            const elementMessageRemove = elementMessage.querySelector(".user-input-message-remove") as HTMLElement;
+            this.elementMessagesContainer.appendChild(elementMessage);
+            this.elementMessages.push({ message: elementMessage, input: elementMessageInput });
+
+            // Add event listener
+            elementMessageInput.addEventListener("input", () => this.onMessageInputChanged(elementMessageInput));
+            elementMessageInput.addEventListener("keypress", (e) => this.onMessageKeyPressed(e, elementMessageInput));
+            elementMessageRemove.addEventListener("click", () => this.deleteMessage(elementMessageInput));
+
+            // Reset height
+            elementMessageInput.style.height = "";
+            elementMessageInput.style.height = elementMessageInput.scrollHeight + "px";
+        }
+
+        deleteMessage(input: HTMLElement) {
+            const index = this.elementMessages.findIndex((m) => m.input == input);
+            this.elementMessages[index].message.remove();
+            this.elementMessages.splice(index, 1);
+            this.elementMessages.forEach((m, i) => (m.message.querySelector(".message-number").textContent = (i + 1).toString()));
+            this.updateOutput();
+        }
+
+        onMessageKeyPressed(e: KeyboardEvent, input: HTMLElement) {}
+
+        onMessageInputChanged(input: HTMLElement) {
+            if (input.textContent == "\n" || input.textContent == "") input.innerHTML = "";
+            input.style.height = "";
+            input.style.height = input.scrollHeight + "px";
+            this.updateOutput();
+        }
+
+        onDelimChanged(e: Event) {
+            this.updateOutput();
+        }
+
+        updateOutput() {
+            this.messages = this.elementMessages.map((m) => Cipher.parseMessage(m.input.innerText, this.elementDelim.value));
+            this.panel.events.emit("nodesUpdated");
+            this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
         }
 
         setPanel(panel: Panel) {
@@ -889,26 +937,6 @@ namespace Panel {
         }
 
         onConnectionDisconnect(type: PanelNodeType, index: number) {}
-
-        onInputChanged(e: Event) {
-            this.elementInput.style.height = "";
-            this.elementInput.style.height = this.elementInput.scrollHeight + 3 + "px";
-            this.updateOutput();
-        }
-
-        onDelimChanged(e: Event) {
-            this.updateOutput();
-        }
-
-        updateOutput() {
-            const input = this.elementInput.innerText;
-            const delim = this.elementDelim.value;
-
-            let lines = input.replace(/\n\n/g, "\n").split("\n");
-            this.messages = lines.map((l) => l.split(delim));
-
-            this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
-        }
     }
 
     /** Panel content, previews messages. */
@@ -917,7 +945,7 @@ namespace Panel {
         messages: string[][];
 
         constructor() {
-            super(`<div class="preview-messages-panel-content empty"></div>`);
+            super(`<div class="preview-messages-panel-content"></div>`);
         }
 
         setPanel(panel: Panel) {
@@ -944,9 +972,9 @@ namespace Panel {
             // Set message and visual
             this.messages = value;
             this.element.innerHTML = "";
-            this.messages.forEach((message: string[]) => {
-                this.element.appendChild(Util.createMessageElement(message));
-            });
+            for (let i = 0; i < this.messages.length; i++) {
+                this.element.appendChild(Util.createMessageElement(this.messages[i], i + 1));
+            }
             this.element.classList.toggle("empty", this.messages.length === 0);
 
             // Trigger events
@@ -1321,11 +1349,6 @@ namespace Panel {
     Globals.notificationManager = new Util.NotificationManager(document.querySelector(".notification-container"));
 
     // Setup preset world state
-    const p1 = Globals.worldManager.addPanel(
-        new Panel.Panel(new Panel.TextPanelContent([Cipher.parseMessage("Hello World"), Cipher.parseMessage("And Again")]), "Text")
-    );
-    const p4 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
-
-    p1.setPosition(35, 250);
-    p4.setPosition(35, 50);
+    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
+    p1.setPosition(70, 100);
 })();
