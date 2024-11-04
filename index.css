@@ -161,6 +161,41 @@
 
 /* ----------------------- */
 
+.scrollable-wrapper {
+    position: relative;
+    width: 100%;
+    --bar-height: 0.6rem;
+}
+
+.scrollable-wrapper-content {
+    overflow: hidden;
+}
+
+.scrollable-wrapper-bar {
+    position: relative;
+    height: var(--bar-height);
+    background-color: #cdcdcd;
+    overflow: hidden;
+}
+
+.scrollable-wrapper-thumb {
+    position: absolute;
+    background-color: #707070;
+    height: var(--bar-height);
+    cursor: pointer;
+    transition: background-color 0.1s;
+}
+
+.scrollable-wrapper-thumb:hover {
+    background-color: rgb(144, 144, 144);
+}
+
+.scrollable-wrapper-thumb.active {
+    background-color: #8f8f8f;
+}
+
+/* ----------------------- */
+
 /* .panel is plain block with bar and body */
 /* .body flex:row with node sidebars and body */
 /* - node sidebars act as horizontal padding */
@@ -439,29 +474,50 @@
 /* ----------------------- */
 
 .user-input-panel-content {
+    width: 15rem;
     height: 100%;
     font-size: 0.7rem;
-
     display: flex;
     flex-direction: column;
     gap: 0.4rem;
 }
 
+.user-input-input-container {
+    border-radius: 0.2rem;
+}
+
+.user-input-input-container .scrollable-wrapper-thumb {
+    border-radius: 0.2rem;
+}
+
+.user-input-input {
+    white-space: pre;
+    width: fit-content;
+    min-width: 100%;
+    padding: 0.3rem;
+    background-color: white;
+    line-height: 1.1rem;
+    border: none;
+    outline: none;
+}
+
+.user-input-input:focus {
+    outline: none;
+}
+
 .user-input-options {
     padding: 0.3rem;
     border-radius: 0.2rem;
-    background-color: rgb(97, 97, 97);
-
+    background-color: #5c5c5c;
     display: flex;
     flex-direction: row;
     gap: 0.4rem;
     align-items: center;
     width: fit-content;
     min-width: fit-content;
-    color: #242424;
+    color: #dfdfdf;
 }
 
-.user-input-input,
 .user-input-delim {
     padding: 0.3rem;
     background-color: white;
@@ -469,20 +525,12 @@
     line-height: 1.1rem;
     border: none;
     outline: none;
+    width: 1.4rem;
+    height: 1.2rem;
 }
 
-.user-input-input:focus,
 .user-input-delim:focus {
     outline: none;
-}
-
-.user-input-input {
-    resize: none;
-    width: 13rem;
-}
-
-.user-input-delim {
-    width: 1.8rem;
 }
 
 /* ----------------------- */

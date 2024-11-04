@@ -278,6 +278,80 @@ namespace Util {
             }, 1200);
         }
     }
+
+    /** A wrapper for an element which can be scrolled horizontally. */
+    export class ScrollableWrapper extends ElementProxy {
+        elementContent: HTMLElement;
+        elementBar: HTMLElement;
+        elementThumb: HTMLElement;
+
+        constructor() {
+            super(`<div class="scrollable-wrapper">
+                    <div class="scrollable-wrapper-content"></div>
+                    <div class="scrollable-wrapper-bar">
+                        <div class="scrollable-wrapper-thumb"</div>
+                    </div>
+                </div>`);
+            this.elementContent = this.element.querySelector(".scrollable-wrapper-content") as HTMLElement;
+            this.elementBar = this.element.querySelector(".scrollable-wrapper-bar") as HTMLElement;
+            this.elementThumb = this.element.querySelector(".scrollable-wrapper-thumb") as HTMLElement;
+
+            // Setup event listeners
+            this.elementContent.addEventListener("scroll", () => this.updateThumbToContent());
+            this.elementContent.addEventListener("input", () => this.updateThumbToContent());
+            this.elementContent.addEventListener("wheel", (e) => {
+                e.preventDefault();
+                this.elementContent.scrollLeft += e.deltaY;
+            });
+            window.addEventListener("resize", () => this.updateThumbToContent());
+            window.addEventListener("load", () => this.updateThumbToContent());
+            this.elementThumb.addEventListener("mousedown", (e) => this.onThumbMouseDown(e));
+        }
+
+        onThumbMouseDown(e: MouseEvent) {
+            e.preventDefault();
+            this.elementThumb.classList.add("dragging");
+            const startMouseX = e.clientX;
+            const startThumbScroll = this.elementThumb.offsetLeft;
+
+            const onMouseMove = (e) => {
+                const deltaMouseX = e.clientX - startMouseX;
+                const scrollLeftPct = (startThumbScroll + deltaMouseX) / (this.elementBar.clientWidth - this.elementThumb.clientWidth);
+                this.elementContent.scrollLeft = scrollLeftPct * (this.elementContent.scrollWidth - this.elementContent.clientWidth);
+            };
+
+            const onMouseUp = () => {
+                this.elementThumb.classList.remove("dragging");
+                window.removeEventListener("mousemove", onMouseMove);
+                window.removeEventListener("mouseup", onMouseUp);
+            };
+
+            window.addEventListener("mousemove", onMouseMove);
+            window.addEventListener("mouseup", onMouseUp);
+        }
+
+        updateThumbToContent() {
+            console.log("Updating thumb");
+
+            const clientSizeX = this.elementContent.clientWidth;
+            const clientScrollableX = this.elementContent.scrollWidth;
+            const clientScrollX = this.elementContent.scrollLeft;
+
+            if (clientSizeX >= clientScrollableX) {
+                this.elementThumb.style.display = "none";
+                return;
+            }
+
+            this.elementThumb.style.display = "block";
+
+            this.elementThumb.style.width = `${(clientSizeX / clientScrollableX) * 100}%`;
+            this.elementThumb.style.left = `${(clientScrollX / clientScrollableX) * 100}%`;
+        }
+
+        addContent(content: HTMLElement) {
+            this.elementContent.appendChild(content);
+        }
+    }
 }
 
 namespace Cipher {
@@ -756,12 +830,14 @@ namespace Panel {
     export class UserInputContent extends Util.ElementProxy implements IPanelContent {
         panel: Panel;
         messages: string[][];
+        elementInputContainer: HTMLInputElement;
+        elementInputScrollable: Util.ScrollableWrapper;
         elementInput: HTMLInputElement;
         elementDelim: HTMLInputElement;
 
         constructor() {
             super(`<div class="user-input-panel-content">
-                    <textarea type="text" class="user-input-input" contentEditable="true" placeholder="input..."></textarea>
+                    <div class="user-input-input-container"></div>
                     <div class="user-input-options">
                         <p>Delimeter</p>
                         <input class="user-input-delim" contentEditable="true"></input>
@@ -769,20 +845,33 @@ namespace Panel {
                 </div>`);
 
             this.messages = [];
-            this.elementInput = this.element.querySelector(".user-input-input");
+            this.elementInputContainer = this.element.querySelector(".user-input-input-container");
             this.elementDelim = this.element.querySelector(".user-input-delim");
+
+            // Create input element inside a scrollable div
+            this.elementInput = Util.createHTMLElement(`<div type="text" class="user-input-input" contentEditable="true"></div>`) as HTMLInputElement;
+            this.elementInputScrollable = new Util.ScrollableWrapper();
+            this.elementInputScrollable.addContent(this.elementInput);
+            this.elementInputContainer.appendChild(this.elementInputScrollable.getHTMLElement());
+
+            // Setup event listeners
             this.elementInput.addEventListener("input", (e) => this.onInputChanged(e));
             this.elementDelim.addEventListener("input", (e) => this.onDelimChanged(e));
 
             // Reset height
             this.elementInput.style.height = "";
             this.elementInput.style.height = this.elementInput.scrollHeight + 3 + "px";
+
+            // Debug init with some value
+            this.elementInput.textContent = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+            this.elementDelim.value = "";
         }
 
         setPanel(panel: Panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(0, 1);
             this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
+            this.updateOutput();
         }
 
         setInput(_index: number, _value: ValueType) {
@@ -812,10 +901,10 @@ namespace Panel {
         }
 
         updateOutput() {
-            const input = this.elementInput.value;
+            const input = this.elementInput.innerText;
             const delim = this.elementDelim.value;
 
-            let lines = input.split("\n");
+            let lines = input.replace(/\n\n/g, "\n").split("\n");
             this.messages = lines.map((l) => l.split(delim));
 
             this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
@@ -915,7 +1004,7 @@ namespace Panel {
 
             // Set message and visual
             this.messages = value;
-            this.elementCount.innerText = this.messages.length.toString();
+            this.elementCount.textContent = this.messages.length.toString();
 
             // Update panel node counts and labels
             this.panel.reinitializeNodes(1, this.messages.length);
@@ -1238,7 +1327,5 @@ namespace Panel {
     const p4 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
 
     p1.setPosition(35, 250);
-    p4.setPosition(50, 70);
-
-    // Globals.worldManager.connectPanels(p1, 0, p4, 0);
+    p4.setPosition(35, 50);
 })();
