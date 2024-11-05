@@ -329,6 +329,103 @@ var Util;
         }
     }
     Util.ScrollableWrapper = ScrollableWrapper;
+    class Dropdown extends ElementProxy {
+        elementMain;
+        elementCurrent;
+        elementCurrentIcon;
+        elementIconSelect;
+        elementOptions;
+        mode;
+        options;
+        isOpen;
+        selected;
+        constructor(options, initial, mode = "icon") {
+            super(`
+                <div class="dropdown">
+                    <div class="dropdown-main">
+                        <div class="dropdown-current"></div>
+                        <img class="dropdown-icon-select" src="assets/icon-dropdown.png">
+                    </div>
+                    <div class="dropdown-options"></div>
+                </div>`);
+            this.elementMain = this.element.querySelector(".dropdown-main");
+            this.elementCurrent = this.element.querySelector(".dropdown-current");
+            this.elementIconSelect = this.element.querySelector(".dropdown-icon-select");
+            this.elementOptions = this.element.querySelector(".dropdown-options");
+            this.elementOptions.style.display = "none";
+            this.mode = mode;
+            this.isOpen = false;
+            if (this.mode == "icon") {
+                this.elementCurrentIcon = Util.createHTMLElement(`<img>`);
+                this.elementCurrent.appendChild(this.elementCurrentIcon);
+            }
+            this.elementMain.addEventListener("click", (e) => {
+                e.stopPropagation();
+                this.setOpen(!this.isOpen);
+            });
+            window.addEventListener("click", () => {
+                this.setOpen(false);
+            });
+            this.setOptions(options);
+            this.selectOption(initial);
+        }
+        setOptions(options) {
+            this.options = options;
+            this.elementOptions.innerHTML = "";
+            // If no options update class
+            let noOptions = Object.keys(this.options).length == 0;
+            this.element.classList.toggle("no-options", noOptions);
+            this.elementIconSelect.src = noOptions ? "assets/icon-cross.png" : "assets/icon-dropdown.png";
+            // Create option elements
+            for (let option in this.options) {
+                let optionElement = Util.createHTMLElement(`<div>`);
+                this.elementOptions.appendChild(optionElement);
+                // Mode based content
+                if (this.mode == "icon") {
+                    let imgElement = Util.createHTMLElement(`<img>`);
+                    imgElement.src = this.options[option];
+                    optionElement.appendChild(imgElement);
+                }
+                else {
+                    optionElement.innerText = this.options[option];
+                }
+                // Add event listener
+                optionElement.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    this.selectOption(option);
+                });
+            }
+        }
+        selectOption(option) {
+            // If option is null deselect options
+            if (option == null) {
+                this.selected = "";
+                this.elementCurrent.innerText = "None";
+                this.setOpen(false);
+                return;
+            }
+            // Set selected option and update icon
+            this.selected = option;
+            if (this.mode == "icon") {
+                this.elementCurrentIcon.src = this.options[option];
+            }
+            else {
+                this.elementCurrent.innerText = this.options[option];
+            }
+            this.events.emit("select", option);
+            this.setOpen(false);
+        }
+        setOpen(open) {
+            if (open == this.isOpen)
+                return;
+            if (open && Object.keys(this.options).length == 0)
+                return;
+            this.elementOptions.style.display = open ? "flex" : "none";
+            this.element.classList.toggle("open", open);
+            this.isOpen = open;
+        }
+    }
+    Util.Dropdown = Dropdown;
 })(Util || (Util = {}));
 var Cipher;
 (function (Cipher) {
@@ -441,7 +538,9 @@ var Panel;
             return new PanelNode(element, elementIndicator, elementLabel);
         }
         reinitializeNodes(inputCount, outputCount) {
+            let updated = false;
             if (inputCount != this.nodes.input.length) {
+                updated = true;
                 this.elementInputNodes.innerHTML = "";
                 this.nodes.input = [];
                 for (let i = 0; i < inputCount; i++) {
@@ -451,6 +550,7 @@ var Panel;
                 }
             }
             if (outputCount != this.nodes.output.length) {
+                updated = true;
                 this.elementOutputNodes.innerHTML = "";
                 this.nodes.output = [];
                 for (let i = 0; i < outputCount; i++) {
@@ -459,7 +559,8 @@ var Panel;
                     this.nodes.output.push(node);
                 }
             }
-            this.events.emit("nodesUpdated");
+            if (updated)
+                this.events.emit("nodesUpdated");
         }
         setInput(index, value) {
             this.content.setInput(index, value);
@@ -714,39 +815,6 @@ var Panel;
         }
     }
     Panel_1.PanelConnection = PanelConnection;
-    /** Panel content, displays messages. */
-    class TextPanelContent extends Util.ElementProxy {
-        panel;
-        messages;
-        constructor(messages) {
-            super(`<div class="hardcoded-panel-content"></div>`);
-            this.messages = messages;
-            this.element.innerHTML = "";
-            for (let i = 0; i < this.messages.length; i++) {
-                this.element.appendChild(Util.createMessageElement(this.messages[i], i + 1));
-            }
-            this.element.classList.toggle("empty", this.messages.length === 0);
-        }
-        setPanel(panel) {
-            this.panel = panel;
-            this.panel.reinitializeNodes(0, 1);
-            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
-        }
-        setInput(_index, _value) {
-            Util.assert(false, "TextEntity does not have any inputs");
-        }
-        getOutput(index) {
-            Util.assert(index == 0, "TextEntity only has one output");
-            return this.messages;
-        }
-        getNodeValueType(type, index) {
-            if (type == "output" && index == 0)
-                return "string[][]";
-            Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
-        }
-        onConnectionDisconnect(type, index) { }
-    }
-    Panel_1.TextPanelContent = TextPanelContent;
     /** Panel content, takes user input. */
     class UserInputContent extends Util.ElementProxy {
         panel;
@@ -776,7 +844,6 @@ var Panel;
             this.addMessage();
         }
         addMessage() {
-            // Add new message input
             const index = this.elementMessages.length;
             const elementMessage = Util.createHTMLElement(`
                 <div class="user-input-message">
@@ -788,30 +855,17 @@ var Panel;
             const elementMessageRemove = elementMessage.querySelector(".user-input-message-remove");
             this.elementMessagesContainer.appendChild(elementMessage);
             this.elementMessages.push({ message: elementMessage, input: elementMessageInput });
-            // Add event listener
             elementMessageInput.addEventListener("input", () => this.onMessageInputChanged(elementMessageInput));
             elementMessageInput.addEventListener("keypress", (e) => this.onMessageKeyPressed(e, elementMessageInput));
             elementMessageRemove.addEventListener("click", () => this.deleteMessage(elementMessageInput));
-            // Reset height
-            elementMessageInput.style.height = "";
-            elementMessageInput.style.height = elementMessageInput.scrollHeight + "px";
+            if (this.panel)
+                this.updateOutput();
         }
         deleteMessage(input) {
             const index = this.elementMessages.findIndex((m) => m.input == input);
             this.elementMessages[index].message.remove();
             this.elementMessages.splice(index, 1);
             this.elementMessages.forEach((m, i) => (m.message.querySelector(".message-number").textContent = (i + 1).toString()));
-            this.updateOutput();
-        }
-        onMessageKeyPressed(e, input) { }
-        onMessageInputChanged(input) {
-            if (input.textContent == "\n" || input.textContent == "")
-                input.innerHTML = "";
-            input.style.height = "";
-            input.style.height = input.scrollHeight + "px";
-            this.updateOutput();
-        }
-        onDelimChanged(e) {
             this.updateOutput();
         }
         updateOutput() {
@@ -837,15 +891,25 @@ var Panel;
                 return "string[][]";
             Util.assert(false, `Cannot get type of ${type} node at index ${index} on HardcodedEntity`);
         }
+        onMessageKeyPressed(e, input) { }
+        onMessageInputChanged(input) {
+            // Clean up remaining elements after clearing out div
+            if (input.textContent == "\n" || input.textContent == "")
+                input.innerHTML = "";
+            this.updateOutput();
+        }
+        onDelimChanged(e) {
+            this.updateOutput();
+        }
         onConnectionDisconnect(type, index) { }
     }
     Panel_1.UserInputContent = UserInputContent;
     /** Panel content, previews messages. */
-    class PreviewMessagesPanelContent extends Util.ElementProxy {
+    class PreviewPanelContent extends Util.ElementProxy {
         panel;
         messages;
         constructor() {
-            super(`<div class="preview-messages-panel-content"></div>`);
+            super(`<div class="preview-panel-content"></div>`);
         }
         setPanel(panel) {
             this.panel = panel;
@@ -855,24 +919,20 @@ var Panel;
         }
         setInput(index, value) {
             Util.assert(index == 0, "TextEntity only has one input");
-            // Exit early with notification if the value is invalid
-            // This shouldn't be reached due to connection.canConnectWith()
             if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
+                console.error(value);
                 return;
             }
-            // Exit early if the value is the same
             if (Util.compareString2D(this.messages, value))
                 return;
-            // Set message and visual
             this.messages = value;
             this.element.innerHTML = "";
             for (let i = 0; i < this.messages.length; i++) {
                 this.element.appendChild(Util.createMessageElement(this.messages[i], i + 1));
             }
             this.element.classList.toggle("empty", this.messages.length === 0);
-            // Trigger events
             this.panel.events.emit("nodesUpdated");
             this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
         }
@@ -892,14 +952,14 @@ var Panel;
                 this.setInput(0, []);
         }
     }
-    Panel_1.PreviewMessagesPanelContent = PreviewMessagesPanelContent;
+    Panel_1.PreviewPanelContent = PreviewPanelContent;
     /** Panel content, splits messages into lines. */
-    class SplitMessagesPanelContent extends Util.ElementProxy {
+    class SplitPanelContent extends Util.ElementProxy {
         elementCount;
         panel;
         messages;
         constructor() {
-            super(`<div class="split-messages-panel-content"><p>0</p></div>`);
+            super(`<div class="split-panel-content"><p>0</p></div>`);
             this.elementCount = this.element.querySelector("p");
         }
         setPanel(panel) {
@@ -909,26 +969,20 @@ var Panel;
         }
         setInput(index, value) {
             Util.assert(index == 0, "SplitTextEntity only has one input");
-            // Exit early with notification if the value is invalid
-            // This shouldn't be reached due to connection.canConnectWith()
             if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
-                console.log(value);
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
+                console.log(value);
                 return;
             }
-            // Exit early if the value is the same
             if (Util.compareString2D(this.messages, value))
                 return;
-            // Set message and visual
             this.messages = value;
             this.elementCount.textContent = this.messages.length.toString();
-            // Update panel node counts and labels
             this.panel.reinitializeNodes(1, this.messages.length);
             this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
             for (let i = 0; i < this.messages.length; i++)
-                this.panel.nodes.output[i].setLabel(this.getNodeValueType("output", 0));
-            // Trigger events
+                this.panel.nodes.output[i].setLabel(this.getNodeValueType("output", i));
             this.panel.events.emit("nodesUpdated");
             for (let i = 0; i < this.messages.length; i++)
                 this.panel.events.emit("outputUpdated", i, this.getOutput(i));
@@ -949,7 +1003,60 @@ var Panel;
                 this.setInput(0, []);
         }
     }
-    Panel_1.SplitMessagesPanelContent = SplitMessagesPanelContent;
+    Panel_1.SplitPanelContent = SplitPanelContent;
+    /** Panel content, processes message */
+    class ProcessPanelContent extends Util.ElementProxy {
+        panel;
+        messages;
+        constructor() {
+            super(`<div class="process-panel-content"></div>`);
+            // Add debug dropdown
+            const dropdown = new Util.Dropdown({
+                "Debug 1": "Debug 1",
+                "Debug 2": "Debug 2",
+                "Debug 3": "Debug 3",
+            }, "Debug 1", "text");
+            this.element.appendChild(dropdown.getHTMLElement());
+        }
+        process() { }
+        setPanel(panel) {
+            this.panel = panel;
+            this.panel.reinitializeNodes(1, 1);
+            this.panel.nodes.input[0].setLabel(this.getNodeValueType("input", 0));
+            this.panel.nodes.output[0].setLabel(this.getNodeValueType("output", 0));
+        }
+        setInput(index, value) {
+            Util.assert(index == 0, "TextEntity only has one input");
+            if (!Util.instanceOfString2D(value)) {
+                const position = this.panel.nodes.input[index].getIndicatorRect();
+                Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
+                console.error(value);
+                return;
+            }
+            if (Util.compareString2D(this.messages, value))
+                return;
+            this.messages = value;
+            this.process();
+            this.panel.events.emit("nodesUpdated");
+            this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
+        }
+        getOutput(index) {
+            Util.assert(index == 0, "TextEntity only has one output");
+            return this.messages;
+        }
+        getNodeValueType(type, index) {
+            if (type == "input" && index == 0)
+                return "string[][]";
+            if (type == "output" && index == 0)
+                return "string[][]";
+            Util.assert(false, `Cannot get type of ${type} node at index ${index} on PreviewMessagesEntity`);
+        }
+        onConnectionDisconnect(type, index) {
+            if (type == "input")
+                this.setInput(0, []);
+        }
+    }
+    Panel_1.ProcessPanelContent = ProcessPanelContent;
     /** Handles creating new panels by dragging from the background. */
     class PanelCreator extends Util.ElementProxy {
         isVisible;
@@ -958,8 +1065,7 @@ var Panel;
             this.setVisible(false);
             this.setPosition(0, 0);
             // Add buttons for each panel type
-            const buttonTypes = ["User Input", "Preview", "Split"];
-            buttonTypes.forEach((type) => {
+            WorldManager.selectablePanels.forEach((type) => {
                 const button = Util.createHTMLElement(`<div class="panel-creator-button">${type}</div>`);
                 button.addEventListener("click", () => this.selectPanelType(type));
                 this.element.appendChild(button);
@@ -984,6 +1090,7 @@ var Panel;
     Panel_1.PanelCreator = PanelCreator;
     /** Global manager for panel connections, panel creation. */
     class WorldManager {
+        static selectablePanels = ["User Input", "Preview", "Split", "Process"];
         panels;
         connections;
         currentConnection;
@@ -1122,10 +1229,13 @@ var Panel;
                     panel = this.addPanel(new Panel(new UserInputContent(), "User Input"));
                     break;
                 case "Preview":
-                    panel = this.addPanel(new Panel(new PreviewMessagesPanelContent(), "Preview"));
+                    panel = this.addPanel(new Panel(new PreviewPanelContent(), "Preview"));
                     break;
                 case "Split":
-                    panel = this.addPanel(new Panel(new SplitMessagesPanelContent(), "Split"));
+                    panel = this.addPanel(new Panel(new SplitPanelContent(), "Split"));
+                    break;
+                case "Process":
+                    panel = this.addPanel(new Panel(new ProcessPanelContent(), "Process"));
                     break;
                 default:
                     throw new Error(`Unknown panel type ${type}`);
@@ -1210,5 +1320,7 @@ var Panel;
     Globals.notificationManager = new Util.NotificationManager(document.querySelector(".notification-container"));
     // Setup preset world state
     const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
+    const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.ProcessPanelContent(), "Process"));
     p1.setPosition(70, 100);
+    p2.setPosition(400, 100);
 })();
