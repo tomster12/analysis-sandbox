@@ -93,10 +93,9 @@
 
 .notification {
     position: absolute;
-    height: 1rem;
+    height: 1.4rem;
     border-radius: 1rem;
     display: flex;
-    /* box-shadow: 0 0.2rem 0.6rem -0.05rem #1b1b1b; */
     opacity: 1;
     transition: opacity 0.5s;
 }
@@ -106,21 +105,22 @@
 }
 
 .notification span {
-    padding: 0.1rem 0.4rem 0.1rem 0.2rem;
+    padding-left: 0.4rem;
+    padding-right: 0.6rem;
     font-weight: 600;
     color: #282828;
 }
 
 .notification div {
-    width: 1rem;
-    height: 1rem;
-    padding: 0.2rem;
+    width: 1.4rem;
+    height: 1.4rem;
+    padding: 0.3rem;
     border-radius: 1rem;
 }
 
 .notification div img {
-    width: 0.6rem;
-    height: 0.6rem;
+    width: 0.8rem;
+    height: 0.8rem;
     object-fit: contain;
 }
 
@@ -162,6 +162,20 @@
 
 /* ----------------------- */
 
+.checkbox {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    border-radius: 0.2rem;
+    padding: 0.2rem 0.4rem;
+    background-color: #757575;
+    color: #efefef;
+    gap: 0.8rem;
+}
+
+/* ----------------------- */
+
 .scrollable-wrapper {
     position: relative;
     width: 100%;
@@ -199,22 +213,20 @@
 
 .dropdown {
     position: relative;
-    width: fit-content;
     overflow: visible;
 }
 
 .dropdown-main {
-    width: fit-content;
     border-radius: 0.4rem;
     background-color: #cbcbcb;
     padding: 0.2rem;
     cursor: pointer;
     overflow: visible;
-
     display: flex;
     flex-direction: row;
     gap: 0.2rem;
     align-items: center;
+    justify-content: space-between;
 }
 
 .dropdown-main:hover {
@@ -225,18 +237,7 @@
     border-radius: 0.4rem 0.4rem 0 0;
 }
 
-.dropdown.no-options .dropdown-main {
-    cursor: not-allowed;
-    background-color: #b0b0b0;
-    border-radius: 0.4rem;
-}
-
-.dropdown.no-options .dropdown-main:hover {
-    background-color: #b0b0b0;
-}
-
 .dropdown-current {
-    width: fit-content;
     height: 1rem;
     line-height: 0.9rem;
     flex-shrink: 0;
@@ -247,30 +248,22 @@
     height: 1rem;
 }
 
-.dropdown.no-options .dropdown-icon-select {
-    height: 0.6rem;
-}
-
-.dropdown-main .dropdown-icon-select {
+.dropdown-icon-select {
     height: 1rem;
     flex-shrink: 0;
 }
 
 .dropdown-options {
+    width: 100%;
     position: absolute;
-    width: fit-content;
-    min-width: 100%;
     top: 100%;
     background-color: #bbbbbb;
     flex-direction: column;
     border-radius: 0 0 0.4rem 0.4rem;
     z-index: 20;
-    overflow: visible;
 }
 
 .dropdown-options div {
-    min-width: fit-content;
-    border-radius: 0.4rem;
     padding: 0.2rem;
     z-index: 20;
     white-space: nowrap;
@@ -284,6 +277,20 @@
 .dropdown-options img {
     height: 1.2rem;
     margin: auto;
+}
+
+.dropdown.no-options .dropdown-main {
+    cursor: not-allowed;
+    background-color: #b0b0b0;
+    border-radius: 0.4rem;
+}
+
+.dropdown.no-options .dropdown-main:hover {
+    background-color: #b0b0b0;
+}
+
+.dropdown.no-options .dropdown-icon-select {
+    height: 0.6rem;
 }
 
 /* ----------------------- */
@@ -556,34 +563,18 @@
 
 /* ----------------------- */
 
-.hardcoded-panel-content {
-    min-width: 3.5rem;
-    height: 100%;
-    background-color: white;
-    box-shadow: 0 0 5px #000000;
-
-    display: flex;
-    justify-content: center;
-    flex-direction: column;
-}
-
-.hardcoded-panel-content.empty {
-    padding: 0;
-    background-color: inherit;
-}
-
-/* ----------------------- */
-
 .user-input-panel-content {
     height: 100%;
     display: flex;
     flex-direction: column;
     gap: var(--panel-content-padding);
+    overflow: visible;
 }
 
 .user-input-messages {
     min-width: 100%;
     border-radius: var(--standard-border-radius);
+    box-shadow: 0 0 5px #0000003d;
 }
 
 .user-input-add-message {
@@ -650,6 +641,7 @@
     width: fit-content;
     min-width: fit-content;
     color: #dfdfdf;
+    box-shadow: 0 0 5px #0000003d;
 }
 
 .user-input-delim {
@@ -696,8 +688,7 @@
     min-width: 5rem;
     height: 100%;
     background-color: white;
-    box-shadow: 0 0 5px #000000;
-
+    box-shadow: 0 0 5px #0000003d;
     display: flex;
     flex-direction: column;
     justify-content: center;
@@ -712,4 +703,7 @@
 
 .process-panel-content {
     overflow: visible;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
 }

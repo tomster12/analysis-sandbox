@@ -426,6 +426,29 @@ var Util;
         }
     }
     Util.Dropdown = Dropdown;
+    class Checkbox extends ElementProxy {
+        elementCheckbox;
+        isChecked;
+        constructor(label, isChecked) {
+            super(`
+                <div class="checkbox">
+                    <span>${label}</span>
+                    <input type="checkbox">
+                </div>`);
+            this.elementCheckbox = this.element.querySelector("input");
+            this.elementCheckbox.checked = isChecked;
+            this.isChecked = isChecked;
+            this.elementCheckbox.addEventListener("change", () => {
+                this.isChecked = this.elementCheckbox.checked;
+                this.events.emit("change", this.isChecked);
+            });
+        }
+        override(checked) {
+            this.elementCheckbox.checked = checked;
+            this.isChecked = checked;
+        }
+    }
+    Util.Checkbox = Checkbox;
 })(Util || (Util = {}));
 var Cipher;
 (function (Cipher) {
@@ -664,6 +687,8 @@ var Panel;
                 return false;
             if (this.targetPanel != null && type == "input")
                 return false;
+            if (panel.nodes[type].length <= index)
+                return false;
             if (this.sourcePanel != null)
                 return isCompatibleValueType(this.sourcePanel.getNodeValueType("output", this.sourceIndex), panel.getNodeValueType(type, index));
             if (this.targetPanel != null)
@@ -782,7 +807,6 @@ var Panel;
         onSourceNodesUpdated() {
             // Check source index is still within range
             if (this.sourceIndex >= this.sourcePanel.nodes.output.length) {
-                Globals.notificationManager.notify("Source node removed", this.sourceWorldPos, "warning");
                 this.remove();
                 return;
             }
@@ -910,6 +934,7 @@ var Panel;
         messages;
         constructor() {
             super(`<div class="preview-panel-content"></div>`);
+            this.messages = [];
         }
         setPanel(panel) {
             this.panel = panel;
@@ -1007,18 +1032,48 @@ var Panel;
     /** Panel content, processes message */
     class ProcessPanelContent extends Util.ElementProxy {
         panel;
-        messages;
+        checkboxLowercase;
+        checkboxUppercase;
+        checkboxRemoveSpaces;
+        inputMessages;
+        outputMessages;
         constructor() {
             super(`<div class="process-panel-content"></div>`);
-            // Add debug dropdown
-            const dropdown = new Util.Dropdown({
-                "Debug 1": "Debug 1",
-                "Debug 2": "Debug 2",
-                "Debug 3": "Debug 3",
-            }, "Debug 1", "text");
-            this.element.appendChild(dropdown.getHTMLElement());
+            this.inputMessages = [];
+            this.outputMessages = [];
+            this.checkboxLowercase = new Util.Checkbox("Lowercase", false);
+            this.element.appendChild(this.checkboxLowercase.getHTMLElement());
+            this.checkboxLowercase.events.listen(this, "change", (value) => {
+                if (value)
+                    this.checkboxUppercase.override(false);
+                this.process();
+            });
+            this.checkboxUppercase = new Util.Checkbox("Uppercase", false);
+            this.element.appendChild(this.checkboxUppercase.getHTMLElement());
+            this.checkboxUppercase.events.listen(this, "change", (value) => {
+                if (value)
+                    this.checkboxLowercase.override(false);
+                this.process();
+            });
+            this.checkboxRemoveSpaces = new Util.Checkbox("Remove Spaces", false);
+            this.element.appendChild(this.checkboxRemoveSpaces.getHTMLElement());
+            this.checkboxRemoveSpaces.events.listen(this, "change", () => this.process());
         }
-        process() { }
+        process() {
+            this.outputMessages = this.inputMessages.map((m) => m.slice());
+            for (let i = 0; i < this.outputMessages.length; i++) {
+                for (let j = 0; j < this.outputMessages[i].length; j++) {
+                    if (this.checkboxLowercase.isChecked)
+                        this.outputMessages[i][j] = this.outputMessages[i][j].toLowerCase();
+                    else if (this.checkboxUppercase.isChecked)
+                        this.outputMessages[i][j] = this.outputMessages[i][j].toUpperCase();
+                    if (this.checkboxRemoveSpaces.isChecked && this.outputMessages[i][j] == " ")
+                        this.outputMessages[i].splice(j--, 1);
+                }
+            }
+            this.panel.events.emit("nodesUpdated");
+            this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
+        }
         setPanel(panel) {
             this.panel = panel;
             this.panel.reinitializeNodes(1, 1);
@@ -1033,16 +1088,16 @@ var Panel;
                 console.error(value);
                 return;
             }
-            if (Util.compareString2D(this.messages, value))
+            if (Util.compareString2D(this.inputMessages, value))
                 return;
-            this.messages = value;
+            this.inputMessages = value;
             this.process();
             this.panel.events.emit("nodesUpdated");
             this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
         }
         getOutput(index) {
             Util.assert(index == 0, "TextEntity only has one output");
-            return this.messages;
+            return this.outputMessages;
         }
         getNodeValueType(type, index) {
             if (type == "input" && index == 0)
@@ -1317,10 +1372,10 @@ var Panel;
     Globals.svgContainer = document.querySelector(".svg-container");
     Globals.worldManager = new Panel.WorldManager();
     Globals.scroller = new Util.ElementScroller(Globals.mainContainer, Globals.contentBackground);
-    Globals.notificationManager = new Util.NotificationManager(document.querySelector(".notification-container"));
+    Globals.notificationManager = new Util.NotificationManager(Globals.contentContainer);
     // Setup preset world state
-    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
+    // const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
     const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.ProcessPanelContent(), "Process"));
-    p1.setPosition(70, 100);
-    p2.setPosition(400, 100);
+    // p1.setPosition(70, 100);
+    p2.setPosition(60, 60);
 })();
