@@ -736,6 +736,11 @@
     background-color: inherit;
 }
 
+.preview-panel-content .message:not(:last-child) .message-number,
+.preview-panel-content .message:not(:last-child) .message-content {
+    padding-bottom: 0;
+}
+
 /* ----------------------- */
 
 .process-panel-content {
