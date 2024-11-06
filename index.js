@@ -622,6 +622,12 @@ var Panel;
             document.body.style.cursor = "default";
             this.elementBar.style.cursor = "grab";
         }
+        serialize() {
+            return this.content.serialize();
+        }
+        deserialize(data) {
+            this.content.deserialize(data);
+        }
     }
     Panel_1.Panel = Panel;
     /** Visual and representation of a connection between two panels. */
@@ -845,7 +851,8 @@ var Panel;
         elementAddMessage;
         elementDelim;
         elementMessages;
-        messages;
+        inputMessages;
+        outputMessages;
         constructor() {
             super(`<div class="user-input-panel-content">
                     <div class="user-input-messages">
@@ -861,7 +868,8 @@ var Panel;
             this.elementAddMessage = this.element.querySelector(".user-input-add-message");
             this.elementDelim = this.element.querySelector(".user-input-delim");
             this.elementMessages = [];
-            this.messages = [];
+            this.inputMessages = [];
+            this.outputMessages = [];
             this.elementAddMessage.addEventListener("click", () => this.addMessage());
             this.elementDelim.addEventListener("input", (e) => this.onDelimChanged(e));
             this.addMessage();
@@ -892,7 +900,8 @@ var Panel;
             this.updateOutput();
         }
         updateOutput() {
-            this.messages = this.elementMessages.map((m) => Cipher.parseMessage(m.input.innerText, this.elementDelim.value));
+            this.inputMessages = this.elementMessages.map((m) => m.input.innerText);
+            this.outputMessages = this.inputMessages.map((m) => Cipher.parseMessage(m, this.elementDelim.value));
             this.panel.events.emit("nodesUpdated");
             this.panel.events.emit("outputUpdated", 0, this.getOutput(0));
         }
@@ -907,7 +916,7 @@ var Panel;
         }
         getOutput(index) {
             Util.assert(index == 0, "TextEntity only has one output");
-            return this.messages;
+            return this.outputMessages;
         }
         getNodeValueType(type, index) {
             if (type == "output" && index == 0)
@@ -925,6 +934,22 @@ var Panel;
             this.updateOutput();
         }
         onConnectionDisconnect(type, index) { }
+        serialize() {
+            return {
+                type: "User Input",
+                position: this.panel.position,
+                inputMessages: this.inputMessages,
+                delim: this.elementDelim.value,
+            };
+        }
+        deserialize(data) {
+            this.deleteMessage(this.elementMessages[0].input);
+            this.panel.setPosition(data.position.x, data.position.y);
+            this.elementDelim.value = data.delim;
+            data.inputMessages.forEach(() => this.addMessage());
+            this.elementMessages.forEach((m, i) => (m.input.innerText = data.inputMessages[i]));
+            this.updateOutput();
+        }
     }
     Panel_1.UserInputContent = UserInputContent;
     /** Panel content, previews messages. */
@@ -974,6 +999,15 @@ var Panel;
         onConnectionDisconnect(type, index) {
             if (type == "input")
                 this.setInput(0, []);
+        }
+        serialize() {
+            return {
+                type: "Preview",
+                position: this.panel.position,
+            };
+        }
+        deserialize(data) {
+            this.panel.setPosition(data.position.x, data.position.y);
         }
     }
     Panel_1.PreviewPanelContent = PreviewPanelContent;
@@ -1025,6 +1059,15 @@ var Panel;
         onConnectionDisconnect(type, index) {
             if (type == "input")
                 this.setInput(0, []);
+        }
+        serialize() {
+            return {
+                type: "Split",
+                position: this.panel.position,
+            };
+        }
+        deserialize(data) {
+            this.panel.setPosition(data.position.x, data.position.y);
         }
     }
     Panel_1.SplitPanelContent = SplitPanelContent;
@@ -1109,6 +1152,21 @@ var Panel;
             if (type == "input")
                 this.setInput(0, []);
         }
+        serialize() {
+            return {
+                type: "Process",
+                position: this.panel.position,
+                checkboxLowercase: this.checkboxLowercase.isChecked,
+                checkboxUppercase: this.checkboxUppercase.isChecked,
+                checkboxRemoveSpaces: this.checkboxRemoveSpaces.isChecked,
+            };
+        }
+        deserialize(data) {
+            this.panel.setPosition(data.position.x, data.position.y);
+            this.checkboxLowercase.override(data.checkboxLowercase);
+            this.checkboxUppercase.override(data.checkboxUppercase);
+            this.checkboxRemoveSpaces.override(data.checkboxRemoveSpaces);
+        }
     }
     Panel_1.ProcessPanelContent = ProcessPanelContent;
     /** Handles creating new panels by dragging from the background. */
@@ -1119,7 +1177,7 @@ var Panel;
             this.setVisible(false);
             this.setPosition(0, 0);
             // Add buttons for each panel type
-            WorldManager.selectablePanels.forEach((type) => {
+            WorldManager.ALL_PANELS.forEach((type) => {
                 const button = Util.createHTMLElement(`<div class="panel-creator-button">${type}</div>`);
                 button.addEventListener("click", () => this.selectPanelType(type));
                 this.element.appendChild(button);
@@ -1144,7 +1202,7 @@ var Panel;
     Panel_1.PanelCreator = PanelCreator;
     /** Global manager for panel connections, panel creation. */
     class WorldManager {
-        static selectablePanels = ["User Input", "Preview", "Split", "Process"];
+        static ALL_PANELS = ["User Input", "Preview", "Split", "Process"];
         panels;
         connections;
         currentConnection;
@@ -1156,12 +1214,20 @@ var Panel;
             this.panelCreator = new PanelCreator();
             Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
             Globals.contentContainer.addEventListener("mousemove", (e) => this.onMouseMove(e));
-            this.setupAddButton();
+            this.setupButtons();
         }
-        setupAddButton() {
-            const button = Util.createHTMLElement(`<div class="add-panel-button">+</div>`);
-            button.addEventListener("click", (e) => this.onAddPanelButtonClicked(e));
-            document.body.appendChild(button);
+        setupButtons() {
+            const container = Util.createHTMLElement(`<div class="main-buttons"></div>`);
+            const buttonAddPanel = Util.createHTMLElement(`<div class="add-panel-main-button">+</div>`);
+            const buttonSave = Util.createHTMLElement(`<div class="save-main-button">Save</div>`);
+            const buttonLoad = Util.createHTMLElement(`<div class="load-main-button">Load</div>`);
+            buttonAddPanel.addEventListener("click", (e) => this.onButtonPressed(e, "addPanel"));
+            buttonSave.addEventListener("click", (e) => this.onButtonPressed(e, "save"));
+            buttonLoad.addEventListener("click", (e) => this.onButtonPressed(e, "load"));
+            container.appendChild(buttonAddPanel);
+            container.appendChild(buttonSave);
+            container.appendChild(buttonLoad);
+            document.body.appendChild(container);
         }
         addPanel(panel) {
             this.panels.push(panel);
@@ -1369,10 +1435,106 @@ var Panel;
                 this.currentConnection.setForcedWorldPosition(scrolledX, scrolledY);
             }
         }
-        onAddPanelButtonClicked(e) {
-            // Open up panel creator in the middle of the screen
-            const rect = Globals.mainContainer.getBoundingClientRect();
-            this.panelCreator.open(rect.width / 2, rect.height / 2);
+        onButtonPressed(e, type) {
+            switch (type) {
+                case "addPanel":
+                    const rect = Globals.mainContainer.getBoundingClientRect();
+                    this.panelCreator.open(rect.width / 2, rect.height / 2);
+                    break;
+                case "save":
+                    this.serializeToLocalStorage();
+                    break;
+                case "load":
+                    this.loadFromLocalStorage();
+                    break;
+                default:
+                    throw new Error(`Unknown button type ${type}`);
+            }
+        }
+        serializeToLocalStorage() {
+            const data = {
+                panels: this.panels.map((p) => p.serialize()),
+                connections: this.connections.map((c) => ({
+                    source: { panel: this.panels.indexOf(c.sourcePanel), index: c.sourceIndex },
+                    target: { panel: this.panels.indexOf(c.targetPanel), index: c.targetIndex },
+                })),
+            };
+            const dataString = JSON.stringify(data);
+            localStorage.setItem("world", dataString);
+        }
+        loadFromLocalStorage() {
+            const dataString = localStorage.getItem("world");
+            if (!dataString)
+                return;
+            this.loadFromString(dataString);
+        }
+        loadFromString(dataString) {
+            const data = JSON.parse(dataString);
+            if (!data)
+                return;
+            // Clear current world
+            while (this.connections.length > 0)
+                this.connections[0].remove();
+            this.connections = [];
+            this.panels.forEach((p) => p.remove());
+            this.panels = [];
+            // Create all the panels
+            for (let i = 0; i < data.panels.length; i++) {
+                const panelData = data.panels[i];
+                let panel;
+                switch (panelData.type) {
+                    case "User Input":
+                        panel = new Panel(new UserInputContent(), "User Input");
+                        break;
+                    case "Preview":
+                        panel = new Panel(new PreviewPanelContent(), "Preview");
+                        break;
+                    case "Split":
+                        panel = new Panel(new SplitPanelContent(), "Split");
+                        break;
+                    case "Process":
+                        panel = new Panel(new ProcessPanelContent(), "Process");
+                        break;
+                    default:
+                        throw new Error(`Unknown panel type ${panelData.type}`);
+                }
+                panel.deserialize(panelData);
+                this.addPanel(panel);
+            }
+            // Calculate panel dependencies
+            let panels = [];
+            let panelConnections = {};
+            for (let i = 0; i < data.panels.length; i++) {
+                panels.push(i);
+                panelConnections[i] = { input: [], output: [] };
+            }
+            for (let i = 0; i < data.connections.length; i++) {
+                panelConnections[data.connections[i].source.panel].output.push(i);
+                panelConnections[data.connections[i].target.panel].input.push(i);
+            }
+            // Create connections
+            while (panels.length > 0) {
+                // Find panel with least dependencies
+                // This is naive and won't work for recursive dependencies
+                let bestPanel = -1;
+                let bestPanelInputs = 0;
+                for (let i = 0; i < panels.length; i++) {
+                    const panel = panels[i];
+                    const dependencies = panelConnections[panel].input.length;
+                    if (bestPanel == -1 || dependencies < bestPanelInputs) {
+                        bestPanel = panel;
+                        bestPanelInputs = dependencies;
+                    }
+                }
+                // Create all connections from this panel
+                if (panelConnections[bestPanel]) {
+                    for (let i = 0; i < panelConnections[bestPanel].output.length; i++) {
+                        const connection = data.connections[panelConnections[bestPanel].output[i]];
+                        this.connectPanels(this.panels[connection.source.panel], connection.source.index, this.panels[connection.target.panel], connection.target.index);
+                    }
+                }
+                panels = panels.filter((p) => p != bestPanel);
+            }
         }
     }
     Panel_1.WorldManager = WorldManager;
@@ -1386,13 +1548,18 @@ document.fonts.ready.then(() => {
     Globals.worldManager = new Panel.WorldManager();
     Globals.scroller = new Util.ElementScroller(Globals.mainContainer, Globals.contentBackground);
     Globals.notificationManager = new Util.NotificationManager(Globals.contentContainer);
-    // Setup preset world state
-    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
-    const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.ProcessPanelContent(), "Process"));
-    const p3 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewPanelContent(), "Preview"));
-    p1.setPosition(70, 70);
-    p2.setPosition(410, 100);
-    p3.setPosition(720, 180);
-    Globals.worldManager.connectPanels(p1, 0, p2, 0);
-    Globals.worldManager.connectPanels(p2, 0, p3, 0);
+    // Load a preset world
+    Globals.worldManager.loadFromString(`{"panels":[
+            {"type":"User Input","position":{"x":29,"y":177},"inputMessages":["gdfs df","fds ddd"],"delim":""},
+            {"type":"Process","position":{"x":274,"y":143},"checkboxLowercase":false,"checkboxUppercase":true,"checkboxRemoveSpaces":true},
+            {"type":"Split","position":{"x":555,"y":256}},
+            {"type":"Preview","position":{"x":780,"y":143}},
+            {"type":"Preview","position":{"x":736,"y":398}}
+        ],
+        "connections":[
+            {"source":{"panel":0,"index":0},"target":{"panel":1,"index":0}},
+            {"source":{"panel":1,"index":0},"target":{"panel":2,"index":0}},
+            {"source":{"panel":2,"index":0},"target":{"panel":3,"index":0}},
+            {"source":{"panel":2,"index":1},"target":{"panel":4,"index":0}}]
+        }`);
 });
