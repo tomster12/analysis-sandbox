@@ -292,6 +292,14 @@ var Util;
             window.addEventListener("resize", () => this.updateThumbToContent());
             window.addEventListener("load", () => this.updateThumbToContent());
             this.elementThumb.addEventListener("mousedown", (e) => this.onThumbMouseDown(e));
+            // Setup mutation observer to update thumb on content change
+            const mutationObserver = new MutationObserver(() => this.updateThumbToContent());
+            mutationObserver.observe(this.elementContent, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                characterData: true, // Observe text content changes
+            });
         }
         onThumbMouseDown(e) {
             e.preventDefault();
@@ -322,6 +330,7 @@ var Util;
             this.elementThumb.style.display = "block";
             this.elementThumb.style.width = `${(clientSizeX / clientScrollableX) * 100}%`;
             this.elementThumb.style.left = `${(clientScrollX / clientScrollableX) * 100}%`;
+            console.log(clientSizeX, clientScrollableX, clientScrollX);
         }
         addContent(content) {
             this.elementContent.appendChild(content);
@@ -848,6 +857,8 @@ var Panel;
     class UserInputContent extends Util.ElementProxy {
         panel;
         elementMessagesContainer;
+        elementMessagesList;
+        messagesScrollable;
         elementAddMessage;
         elementDelim;
         elementMessages;
@@ -855,8 +866,7 @@ var Panel;
         outputMessages;
         constructor() {
             super(`<div class="user-input-panel-content">
-                    <div class="user-input-messages">
-                        <div class="user-input-messages-container"></div>
+                    <div class="user-input-messages-container">
                         <div class="user-input-add-message">+</div>
                     </div>
                     <div class="user-input-options">
@@ -870,6 +880,10 @@ var Panel;
             this.elementMessages = [];
             this.inputMessages = [];
             this.outputMessages = [];
+            this.messagesScrollable = new Util.ScrollableWrapper();
+            this.elementMessagesList = Util.createHTMLElement(`<div class="user-input-messages-list"></div>`);
+            this.elementMessagesContainer.prepend(this.messagesScrollable.element);
+            this.messagesScrollable.addContent(this.elementMessagesList);
             this.elementAddMessage.addEventListener("click", () => this.addMessage());
             this.elementDelim.addEventListener("input", (e) => this.onDelimChanged(e));
             this.addMessage();
@@ -878,13 +892,13 @@ var Panel;
             const index = this.elementMessages.length;
             const elementMessage = Util.createHTMLElement(`
                 <div class="user-input-message">
+                    <div class="user-input-message-remove"><img></img></div>
                     <div class="message-number">${index + 1}</div>
                     <div class="user-input-message-input" contentEditable="true"></div>
-                    <div class="user-input-message-remove"><img></img></div>
                 </div>`);
             const elementMessageInput = elementMessage.querySelector(".user-input-message-input");
             const elementMessageRemove = elementMessage.querySelector(".user-input-message-remove");
-            this.elementMessagesContainer.appendChild(elementMessage);
+            this.elementMessagesList.appendChild(elementMessage);
             this.elementMessages.push({ message: elementMessage, input: elementMessageInput });
             elementMessageInput.addEventListener("input", () => this.onMessageInputChanged(elementMessageInput));
             elementMessageInput.addEventListener("keypress", (e) => this.onMessageKeyPressed(e, elementMessageInput));
@@ -913,6 +927,16 @@ var Panel;
         }
         setInput(_index, _value) {
             Util.assert(false, "TextEntity does not have any inputs");
+        }
+        overrideMessages(messages) {
+            while (this.elementMessages.length > 0)
+                this.deleteMessage(this.elementMessages[0].input);
+            messages.forEach(() => this.addMessage());
+            this.elementMessages.forEach((m, i) => (m.input.textContent = messages[i]));
+            this.updateOutput();
+            // Message scroll widths are incorrect at this point
+            // Even with multiple requestAnimationFrame calls it is still incorrect
+            console.log(this.elementMessagesList.offsetWidth);
         }
         getOutput(index) {
             Util.assert(index == 0, "TextEntity only has one output");
@@ -943,12 +967,9 @@ var Panel;
             };
         }
         deserialize(data) {
-            this.deleteMessage(this.elementMessages[0].input);
             this.panel.setPosition(data.position.x, data.position.y);
             this.elementDelim.value = data.delim;
-            data.inputMessages.forEach(() => this.addMessage());
-            this.elementMessages.forEach((m, i) => (m.input.innerText = data.inputMessages[i]));
-            this.updateOutput();
+            this.overrideMessages(data.inputMessages);
         }
     }
     Panel_1.UserInputContent = UserInputContent;
@@ -1549,17 +1570,12 @@ document.fonts.ready.then(() => {
     Globals.scroller = new Util.ElementScroller(Globals.mainContainer, Globals.contentBackground);
     Globals.notificationManager = new Util.NotificationManager(Globals.contentContainer);
     // Load a preset world
-    Globals.worldManager.loadFromString(`{"panels":[
-            {"type":"User Input","position":{"x":29,"y":177},"inputMessages":["gdfs df","fds ddd"],"delim":""},
-            {"type":"Process","position":{"x":274,"y":143},"checkboxLowercase":false,"checkboxUppercase":true,"checkboxRemoveSpaces":true},
-            {"type":"Split","position":{"x":555,"y":256}},
-            {"type":"Preview","position":{"x":780,"y":143}},
-            {"type":"Preview","position":{"x":736,"y":398}}
-        ],
-        "connections":[
-            {"source":{"panel":0,"index":0},"target":{"panel":1,"index":0}},
-            {"source":{"panel":1,"index":0},"target":{"panel":2,"index":0}},
-            {"source":{"panel":2,"index":0},"target":{"panel":3,"index":0}},
-            {"source":{"panel":2,"index":1},"target":{"panel":4,"index":0}}]
+    Globals.worldManager.loadFromString(`{
+            "panels":[
+                {"type":"User Input","position":{"x":40,"y":70},"inputMessages":[
+                    "50,66,5,48,62,13,75,29,24,61,42,70,66,62,32,14,81,8,15,78,2,29,13,49,1,80,82,40,63,81,21,19,0,40,51,65,26,14,21,70,47,44,48,42,19,48,13,47,19,49,72,31,5,24,3,43,59,67,33,49,41,60,21,26,30,5,25,20,71,11,74,56,4,74,19,71,4,51,41,43,80,72,54,63,79,81,15,16,44,31,30,12,33,57,28,13,64,43,48"
+                ],"delim":","}
+            ],
+            "connections":[]
         }`);
 });

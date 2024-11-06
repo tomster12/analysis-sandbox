@@ -2,21 +2,10 @@
 
 https://tomster12.github.io/analysis-sandbox/
 
-## Planned Features
-
-- Panel Types:
-  - Input
-  - Processing (lowercase, uppercase, mathematical, To / from ascii)
-  - Preview (Direct, summary graphs)
-  - Analysis (Gap distances)
-- Serialization for import / export
-- Toggleable previews in panels
-- Renamable panels
-
 ## To-Do
 
-- System for background click exclusivity
-- Node add menu for available panel types
-- UI for showing when dragging
-- Button to open add menu
-- Implement user input panel
+- Consistent text sizing in messages
+- Scrollbar on long messages
+- Better panel creator / connection interaction
+- Same letter highlighting on messages
+- Standardize message view for use in multiple panels with highlighting
