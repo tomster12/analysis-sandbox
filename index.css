@@ -303,7 +303,7 @@
     --panel-content-padding: 0.6rem;
     display: inline-block;
     position: absolute;
-    background-color: rgb(130, 130, 130);
+    background-color: #828282;
     box-shadow: 0 0.2rem 0.7rem -0.2rem #1e1e1e;
     transition: box-shadow 0.15s;
     border-radius: var(--standard-border-radius);
@@ -487,18 +487,18 @@
 .panel-creator {
     position: absolute;
     display: none;
-    background-color: rgba(129, 129, 129, 0.437);
+    background-color: #828282;
     border: 0.1rem solid rgba(129, 129, 129, 0.437);
     border-radius: var(--standard-border-radius);
     flex-direction: column;
     gap: 0.4rem;
     padding: 0.4rem;
-    width: 5.5rem;
+    width: 7rem;
 }
 
 .panel-creator-button {
-    height: 1.2rem;
-    line-height: 1.2rem;
+    height: 1.4rem;
+    line-height: 1.4rem;
     background-color: #e5e5e5;
     border-radius: var(--standard-border-radius);
     cursor: pointer;
@@ -513,6 +513,25 @@
 
 .panel-creator.visible {
     display: flex;
+}
+
+/* ----------------------- */
+
+.add-panel-button {
+    position: absolute;
+    right: 1.5rem;
+    bottom: 2.5rem;
+    width: 2.4rem;
+    height: 2.4rem;
+    box-shadow: 0 0.2rem 0.5rem -0.06rem #00000069;
+    cursor: pointer;
+    z-index: 10;
+    border-radius: 0.8rem;
+    background-color: #676767;
+    text-align: center;
+    line-height: 2rem;
+    font-size: 2.7rem;
+    color: #a2a2a2;
 }
 
 /* ----------------------- */
@@ -692,6 +711,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
+    border-radius: var(--standard-border-radius);
 }
 
 .preview-panel-content.empty {

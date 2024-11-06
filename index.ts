@@ -211,7 +211,7 @@ namespace Util {
 
             this.elementClick.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
             this.elementClick.addEventListener("mousemove", (e) => this.onBackgroundMouseMove(e));
-            this.elementClick.addEventListener("mouseup", (e) => this.onBackgroundMouseUp(e));
+            document.addEventListener("mouseup", (e) => this.onDocumentMouseUp(e));
         }
 
         updateElement() {
@@ -238,7 +238,7 @@ namespace Util {
             this.updateElement();
         }
 
-        onBackgroundMouseUp(e: MouseEvent) {
+        onDocumentMouseUp(e: MouseEvent) {
             if (!this.isDragging) return;
             this.isDragging = false;
             document.body.style.cursor = "default";
@@ -337,8 +337,6 @@ namespace Util {
         }
 
         updateThumbToContent() {
-            console.log("Updating thumb");
-
             const clientSizeX = this.elementContent.clientWidth;
             const clientScrollableX = this.elementContent.scrollWidth;
             const clientScrollX = this.elementContent.scrollLeft;
@@ -799,20 +797,6 @@ namespace Panel {
             this.updateElement();
         }
 
-        establish() {
-            this.isConnected = true;
-            document.body.style.cursor = "default";
-            this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(false);
-            this.targetPanel.nodes.input[this.targetIndex].setConnecting(false);
-
-            this.sourcePanel.events.listen(this, "outputUpdated", (index: number, value: ValueType) => {
-                if (index === this.sourceIndex) this.targetPanel.setInput(this.targetIndex, value);
-            });
-
-            const value = this.sourcePanel.getOutput(this.sourceIndex);
-            this.targetPanel.setInput(this.targetIndex, value);
-        }
-
         remove() {
             document.body.style.cursor = "default";
             if (this.sourcePanel) {
@@ -873,6 +857,20 @@ namespace Panel {
                 x: targetScreenRect.left + targetScreenRect.width / 2 + Globals.scroller.scroll.x,
                 y: targetScreenRect.top + targetScreenRect.height / 2 + Globals.scroller.scroll.y,
             };
+        }
+
+        establish() {
+            this.isConnected = true;
+            document.body.style.cursor = "default";
+            this.sourcePanel.nodes.output[this.sourceIndex].setConnecting(false);
+            this.targetPanel.nodes.input[this.targetIndex].setConnecting(false);
+
+            this.sourcePanel.events.listen(this, "outputUpdated", (index: number, value: ValueType) => {
+                if (index === this.sourceIndex) this.targetPanel.setInput(this.targetIndex, value);
+            });
+
+            const value = this.sourcePanel.getOutput(this.sourceIndex);
+            this.targetPanel.setInput(this.targetIndex, value);
         }
 
         updateElement() {
@@ -1116,7 +1114,7 @@ namespace Panel {
             if (!Util.instanceOfString2D(value)) {
                 const position = this.panel.nodes.input[index].getIndicatorRect();
                 Globals.notificationManager.notify("Bad input type!", { x: position.left - 50, y: position.top - 35 }, "error");
-                console.log(value);
+                console.error(value);
                 return;
             }
 
@@ -1292,6 +1290,13 @@ namespace Panel {
             this.panelCreator = new PanelCreator();
             Globals.contentBackground.addEventListener("mousedown", (e) => this.onBackgroundMouseDown(e));
             Globals.contentContainer.addEventListener("mousemove", (e) => this.onMouseMove(e));
+            this.setupAddButton();
+        }
+
+        setupAddButton() {
+            const button = Util.createHTMLElement(`<div class="add-panel-button">+</div>`);
+            button.addEventListener("click", (e) => this.onAddPanelButtonClicked(e));
+            document.body.appendChild(button);
         }
 
         addPanel(panel: Panel) {
@@ -1319,6 +1324,62 @@ namespace Panel {
             const connection = new PanelConnection();
             connection.set(sourcePanel, sourceindex, targetPanel, targetindex);
             this.connections.push(connection);
+        }
+
+        selectPanelType(type: string) {
+            // Add panel to world
+            const position = this.panelCreator.getPosition();
+            let panel;
+            switch (type) {
+                case "User Input":
+                    panel = this.addPanel(new Panel(new UserInputContent(), "User Input"));
+                    break;
+                case "Preview":
+                    panel = this.addPanel(new Panel(new PreviewPanelContent(), "Preview"));
+                    break;
+                case "Split":
+                    panel = this.addPanel(new Panel(new SplitPanelContent(), "Split"));
+                    break;
+                case "Process":
+                    panel = this.addPanel(new Panel(new ProcessPanelContent(), "Process"));
+                    break;
+                default:
+                    throw new Error(`Unknown panel type ${type}`);
+            }
+            panel.setPosition(position.x, position.y);
+
+            // Try connect to new panel index 0
+            if (this.currentConnection) {
+                let successful = false;
+
+                // Try connect to input node
+                if (this.currentConnection.sourcePanel) {
+                    if (!this.currentConnection.canConnectWith(panel, "input", 0)) {
+                        Globals.notificationManager.notify("Cannot connect to input node", { x: position.x - 50, y: position.y - 35 }, "error");
+                    } else {
+                        this.currentConnection.setTarget(panel, 0);
+                        Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting target");
+                        successful = true;
+                    }
+                }
+
+                // Try connect to output node
+                else {
+                    if (!this.currentConnection.canConnectWith(panel, "output", 0)) {
+                        Globals.notificationManager.notify("Cannot connect to output node", { x: position.x - 50, y: position.y - 35 }, "error");
+                    } else {
+                        this.currentConnection.setSource(panel, 0);
+                        Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting source");
+                        successful = true;
+                    }
+                }
+
+                // Handle finishing the connection
+                if (successful) this.connections.push(this.currentConnection);
+                else this.currentConnection.remove();
+                this.currentConnection = null;
+                this.onHeldConnectionFinish();
+            }
         }
 
         onClickPanelSourceNode(panel: Panel, index: number) {
@@ -1425,62 +1486,6 @@ namespace Panel {
             this.panels = this.panels.filter((p) => p !== panel);
         }
 
-        selectPanelType(type: string) {
-            // Add panel to world
-            const position = this.panelCreator.getPosition();
-            let panel;
-            switch (type) {
-                case "User Input":
-                    panel = this.addPanel(new Panel(new UserInputContent(), "User Input"));
-                    break;
-                case "Preview":
-                    panel = this.addPanel(new Panel(new PreviewPanelContent(), "Preview"));
-                    break;
-                case "Split":
-                    panel = this.addPanel(new Panel(new SplitPanelContent(), "Split"));
-                    break;
-                case "Process":
-                    panel = this.addPanel(new Panel(new ProcessPanelContent(), "Process"));
-                    break;
-                default:
-                    throw new Error(`Unknown panel type ${type}`);
-            }
-            panel.setPosition(position.x, position.y);
-
-            // Try connect to new panel index 0
-            if (this.currentConnection) {
-                let successful = false;
-
-                // Try connect to input node
-                if (this.currentConnection.sourcePanel) {
-                    if (!this.currentConnection.canConnectWith(panel, "input", 0)) {
-                        Globals.notificationManager.notify("Cannot connect to input node", { x: position.x - 50, y: position.y - 35 }, "error");
-                    } else {
-                        this.currentConnection.setTarget(panel, 0);
-                        Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting target");
-                        successful = true;
-                    }
-                }
-
-                // Try connect to output node
-                else {
-                    if (!this.currentConnection.canConnectWith(panel, "output", 0)) {
-                        Globals.notificationManager.notify("Cannot connect to output node", { x: position.x - 50, y: position.y - 35 }, "error");
-                    } else {
-                        this.currentConnection.setSource(panel, 0);
-                        Util.assert(this.currentConnection.isConnected, "Connection should be connected after setting source");
-                        successful = true;
-                    }
-                }
-
-                // Handle finishing the connection
-                if (successful) this.connections.push(this.currentConnection);
-                else this.currentConnection.remove();
-                this.currentConnection = null;
-                this.onHeldConnectionFinish();
-            }
-        }
-
         onBackgroundMouseDown(e: MouseEvent) {
             let worldX = e.clientX + Globals.scroller.scroll.x;
             let worldY = e.clientY + Globals.scroller.scroll.y;
@@ -1505,6 +1510,8 @@ namespace Panel {
                     this.currentConnection = null;
                     this.onHeldConnectionFinish();
                 }
+            } else if (this.panelCreator.isVisible) {
+                this.panelCreator.close();
             }
         }
 
@@ -1516,10 +1523,16 @@ namespace Panel {
                 this.currentConnection.setForcedWorldPosition(scrolledX, scrolledY);
             }
         }
+
+        onAddPanelButtonClicked(e: MouseEvent) {
+            // Open up panel creator in the middle of the screen
+            const rect = Globals.mainContainer.getBoundingClientRect();
+            this.panelCreator.open(rect.width / 2, rect.height / 2);
+        }
     }
 }
 
-(function () {
+document.fonts.ready.then(() => {
     // Setup globals
     Globals.mainContainer = document.querySelector(".main-container");
     Globals.contentContainer = document.querySelector(".content-container");
@@ -1530,8 +1543,12 @@ namespace Panel {
     Globals.notificationManager = new Util.NotificationManager(Globals.contentContainer);
 
     // Setup preset world state
-    // const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
+    const p1 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.UserInputContent(), "Input"));
     const p2 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.ProcessPanelContent(), "Process"));
-    // p1.setPosition(70, 100);
-    p2.setPosition(60, 60);
-})();
+    const p3 = Globals.worldManager.addPanel(new Panel.Panel(new Panel.PreviewPanelContent(), "Preview"));
+    p1.setPosition(70, 70);
+    p2.setPosition(410, 100);
+    p3.setPosition(720, 180);
+    Globals.worldManager.connectPanels(p1, 0, p2, 0);
+    Globals.worldManager.connectPanels(p2, 0, p3, 0);
+});
