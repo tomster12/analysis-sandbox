@@ -565,9 +565,29 @@
 
 /* ----------------------- */
 
+.messages {
+    min-width: 5rem;
+    background-color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    width: fit-content;
+}
+
+.messages.empty {
+    padding: 0;
+    background-color: inherit;
+}
+
+.messages .message:not(:last-child) .message-number,
+.messages .message:not(:last-child) .message-content {
+    padding-bottom: 0;
+}
+
 .message {
     display: flex;
     flex-direction: row;
+    width: fit-content;
 }
 
 .message-content {
@@ -613,18 +633,6 @@
     border-radius: var(--standard-border-radius);
     box-shadow: 0 0 5px #0000003d;
     background-color: white;
-}
-
-.user-input-add-message {
-    padding: 0.1rem;
-    background-color: #d6d6d6;
-    cursor: pointer;
-    text-align: center;
-    font-weight: bold;
-}
-
-.user-input-add-message:hover {
-    background-color: #e6e6e6;
 }
 
 .user-input-messages-list {
@@ -690,6 +698,22 @@
     box-shadow: 0 0 5px #0000003d;
 }
 
+.user-input-add-message {
+    width: 1.5rem;
+    height: 1.5rem;
+    background-color: #d6d6d6;
+    cursor: pointer;
+    border-radius: var(--standard-border-radius);
+    text-align: center;
+    font-weight: bold;
+    color: black;
+    line-height: 1.4rem;
+}
+
+.user-input-add-message:hover {
+    background-color: #e6e6e6;
+}
+
 .user-input-delim {
     padding: 0.3rem;
     background-color: white;
@@ -731,24 +755,9 @@
 /* ----------------------- */
 
 .preview-panel-content {
-    min-width: 5rem;
-    height: 100%;
-    background-color: white;
+    max-width: 30rem;
     box-shadow: 0 0 5px #0000003d;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
     border-radius: var(--standard-border-radius);
-}
-
-.preview-panel-content.empty {
-    padding: 0;
-    background-color: inherit;
-}
-
-.preview-panel-content .message:not(:last-child) .message-number,
-.preview-panel-content .message:not(:last-child) .message-content {
-    padding-bottom: 0;
 }
 
 /* ----------------------- */
