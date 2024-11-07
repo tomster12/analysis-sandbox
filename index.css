@@ -13,7 +13,8 @@
     font-size: 20px;
     color: #101010;
     --standard-border-radius: 0.2rem;
-    --message-padding: 0.2rem;
+    --message-padding: 0.4rem;
+    --panel-content-padding: 0.7rem;
 }
 
 * {
@@ -179,7 +180,7 @@
 .scrollable-wrapper {
     position: relative;
     width: 100%;
-    --bar-height: 0.6rem;
+    --bar-height: 1rem;
 }
 
 .scrollable-wrapper-content {
@@ -195,17 +196,23 @@
 
 .scrollable-wrapper-thumb {
     position: absolute;
-    background-color: #707070;
     height: var(--bar-height);
+    padding: 0.2rem;
     cursor: pointer;
-    transition: background-color 0.1s;
 }
 
-.scrollable-wrapper-thumb:hover {
+.scrollable-wrapper-thumb div {
+    background-color: #707070;
+    transition: background-color 0.1s;
+    height: 100%;
+    border-radius: var(--standard-border-radius);
+}
+
+.scrollable-wrapper-thumb:hover div {
     background-color: rgb(144, 144, 144);
 }
 
-.scrollable-wrapper-thumb.active {
+.scrollable-wrapper-thumb.active div {
     background-color: #8f8f8f;
 }
 
@@ -300,7 +307,6 @@
 /* - node sidebars act as horizontal padding */
 
 .panel {
-    --panel-content-padding: 0.6rem;
     display: inline-block;
     position: absolute;
     background-color: #828282;
@@ -608,9 +614,9 @@
     overflow: hidden;
     white-space: nowrap;
     user-select: text;
+    font-family: "Cousine", monospace;
     text-align: center;
     align-content: center;
-    font-family: "Cousine", monospace;
 }
 
 .message-content span:hover {
@@ -632,12 +638,12 @@
     min-width: 100%;
     border-radius: var(--standard-border-radius);
     box-shadow: 0 0 5px #0000003d;
-    background-color: white;
 }
 
 .user-input-messages-list {
     min-width: fit-content;
     width: 100%;
+    background-color: white;
 }
 
 .user-input-message {
@@ -669,14 +675,14 @@
 
 .user-input-message-remove {
     flex-shrink: 0;
-    padding: 0.3rem 0.2rem;
+    padding: 0.6rem 0.2rem 0.4rem 0.35rem;
     cursor: pointer;
     display: flex;
 }
 
 .user-input-message-remove img {
-    width: 0.8rem;
-    height: 0.8rem;
+    width: 0.65rem;
+    height: 0.65rem;
     content: url("assets/cross-dark.png");
 }
 
@@ -685,36 +691,42 @@
 }
 
 .user-input-options {
-    padding: 0.3rem;
-    border-radius: var(--standard-border-radius);
-    background-color: #5c5c5c;
     display: flex;
     flex-direction: row;
-    gap: 0.4rem;
+    gap: 0.6rem;
+    padding-left: 0.2rem;
     align-items: center;
-    width: fit-content;
-    min-width: fit-content;
-    color: #dfdfdf;
-    box-shadow: 0 0 5px #0000003d;
 }
 
 .user-input-add-message {
-    width: 1.5rem;
-    height: 1.5rem;
+    width: 1.7rem;
+    height: 1.7rem;
     background-color: #d6d6d6;
     cursor: pointer;
     border-radius: var(--standard-border-radius);
     text-align: center;
     font-weight: bold;
     color: black;
-    line-height: 1.4rem;
+    line-height: 1.6rem;
+    box-shadow: 0 0 5px #0000003d;
 }
 
 .user-input-add-message:hover {
     background-color: #e6e6e6;
 }
+.user-input-delim-container {
+    display: flex;
+    gap: 0.6rem;
+    align-items: center;
+    padding: 0.3rem;
+    border-radius: var(--standard-border-radius);
+    background-color: #5c5c5c;
+    width: fit-content;
+    color: #dfdfdf;
+    box-shadow: 0 0 5px #0000003d;
+}
 
-.user-input-delim {
+.user-input-delim-input {
     padding: 0.3rem;
     background-color: white;
     border-radius: var(--standard-border-radius);
@@ -726,7 +738,7 @@
     font-size: 1rem;
 }
 
-.user-input-delim:focus {
+.user-input-delim-input:focus {
     outline: none;
 }
 

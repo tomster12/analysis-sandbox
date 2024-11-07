@@ -298,7 +298,9 @@ namespace Util {
             super(`<div class="scrollable-wrapper">
                     <div class="scrollable-wrapper-content"></div>
                     <div class="scrollable-wrapper-bar">
-                        <div class="scrollable-wrapper-thumb"</div>
+                        <div class="scrollable-wrapper-thumb">
+                            <div></div>
+                        </div>
                     </div>
                 </div>`);
             this.elementContent = this.element.querySelector(".scrollable-wrapper-content") as HTMLElement;
@@ -969,14 +971,16 @@ namespace Panel {
                     <div class="user-input-messages-container"></div>
                     <div class="user-input-options">
                         <div class="user-input-add-message">+</div>
-                        <p>Delimeter</p>
-                        <input class="user-input-delim" contentEditable="true"></input>
+                        <div class="user-input-delim-container">
+                            <p>Delimeter</p>
+                            <input class="user-input-delim-input" contentEditable="true"></input>
+                        </div>
                     </div>
                 </div>`);
 
             this.elementMessagesContainer = this.element.querySelector(".user-input-messages-container");
             this.elementAddMessage = this.element.querySelector(".user-input-add-message");
-            this.elementDelim = this.element.querySelector(".user-input-delim");
+            this.elementDelim = this.element.querySelector(".user-input-delim-input");
             this.elementMessages = [];
             this.inputMessages = [];
             this.outputMessages = [];
@@ -1785,7 +1789,7 @@ document.fonts.ready.then(() => {
                 },
                 {
                     "type":"Preview",
-                    "position":{"x":750,"y":70}
+                    "position":{"x":750,"y":75}
                 }
             ],
             "connections":[
