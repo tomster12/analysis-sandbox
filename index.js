@@ -1206,6 +1206,7 @@ var Panel;
     /** Handles creating new panels by dragging from the background. */
     class PanelCreator extends Util.ElementProxy {
         isVisible;
+        clickListener;
         constructor() {
             super(`<div class="panel-creator"></div>`);
             this.setVisible(false);
@@ -1216,6 +1217,7 @@ var Panel;
                 button.addEventListener("click", () => this.selectPanelType(type));
                 this.element.appendChild(button);
             });
+            this.clickListener = () => this.onDocumentClick();
         }
         selectPanelType(type) {
             Globals.worldManager.selectPanelType(type);
@@ -1224,6 +1226,10 @@ var Panel;
         setVisible(isVisible) {
             this.isVisible = isVisible;
             this.element.classList.toggle("visible", isVisible);
+            if (this.isVisible)
+                document.addEventListener("onmousedown", this.clickListener);
+            else
+                document.removeEventListener("onmousedown", this.clickListener);
         }
         open(worldX, worldY) {
             this.setVisible(true);
@@ -1231,6 +1237,13 @@ var Panel;
         }
         close() {
             this.setVisible(false);
+        }
+        onDocumentClick() {
+            console.log("Document click");
+            setTimeout(() => {
+                if (this.isVisible)
+                    this.close();
+            });
         }
     }
     Panel_1.PanelCreator = PanelCreator;

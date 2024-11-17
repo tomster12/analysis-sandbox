@@ -1344,6 +1344,7 @@ namespace Panel {
     /** Handles creating new panels by dragging from the background. */
     export class PanelCreator extends Util.ElementProxy {
         isVisible: boolean;
+        clickListener: () => void;
 
         constructor() {
             super(`<div class="panel-creator"></div>`);
@@ -1356,6 +1357,8 @@ namespace Panel {
                 button.addEventListener("click", () => this.selectPanelType(type));
                 this.element.appendChild(button);
             });
+
+            this.clickListener = () => this.onDocumentClick();
         }
 
         selectPanelType(type: string) {
@@ -1366,6 +1369,9 @@ namespace Panel {
         setVisible(isVisible: boolean) {
             this.isVisible = isVisible;
             this.element.classList.toggle("visible", isVisible);
+
+            if (this.isVisible) document.addEventListener("onmousedown", this.clickListener);
+            else document.removeEventListener("onmousedown", this.clickListener);
         }
 
         open(worldX: number, worldY: number) {
@@ -1375,6 +1381,13 @@ namespace Panel {
 
         close() {
             this.setVisible(false);
+        }
+
+        onDocumentClick() {
+            console.log("Document click");
+            setTimeout(() => {
+                if (this.isVisible) this.close();
+            });
         }
     }
 
